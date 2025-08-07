@@ -13,9 +13,12 @@ from functools import partial
 from config import Config
 from model.moco import MoCo
 from model.dual_attention import DualSTB
-from utils.data_loader import read_traj_dataset
+from utils.data_loader import read_traj_dataset, read_spark_dataset
 from utils.traj import *
 from utils import tool_funcs
+import warnings
+
+warnings.filterwarnings("ignore", message=".*Support for mismatched src_key_padding_mask and mask is deprecated.*")
 
 
 class TrajCL(nn.Module):
@@ -74,15 +77,19 @@ class TrajCL(nn.Module):
         return self
 
 
-def collate_and_augment(trajs, cellspace, embs, augfn1, augfn2):
+def collate_and_augment(trajs, cellspace, embs, augfn1, augfn2, augfn3, augfn4):
     # trajs: list of [[lon, lat], [,], ...]
 
     # 1. augment the input traj in order to form 2 augmented traj views
     # 2. convert augmented trajs to the trajs based on mercator space by cells
     # 3. read cell embeddings and form batch tensors (sort, pad)
-
-    trajs1 = [augfn1(t) for t in trajs]
-    trajs2 = [augfn2(t) for t in trajs]
+    random_int = np.random.randint(0,1)
+    if random_int==0:
+        trajs1 = [augfn1(t) for t in trajs]
+        trajs2 = [augfn2(t) for t in trajs]
+    else:
+        trajs1 = [augfn3(t) for t in trajs]
+        trajs2 = [augfn4(t) for t in trajs]
 
     trajs1_cell, trajs1_p = zip(*[merc2cell2(t, cellspace) for t in trajs1])
     trajs2_cell, trajs2_p = zip(*[merc2cell2(t, cellspace) for t in trajs2])
@@ -103,7 +110,7 @@ def collate_and_augment(trajs, cellspace, embs, augfn1, augfn2):
     trajs2_len = torch.tensor(list(map(len, trajs2_cell)), dtype = torch.long, device = Config.device)
 
     # return: two padded tensors and their lengths
-    return trajs1_emb_cell, trajs1_emb_p, trajs1_len, trajs2_emb_cell, trajs2_emb_p, trajs2_len
+    return trajs1_emb_cell.float(), trajs1_emb_p.float(), trajs1_len, trajs2_emb_cell.float(), trajs2_emb_p.float(), trajs2_len
 
 
 def collate_for_test(trajs, cellspace, embs):
@@ -127,22 +134,25 @@ def collate_for_test(trajs, cellspace, embs):
 
 class TrajCLTrainer:
 
-    def __init__(self, str_aug1, str_aug2):
+    def __init__(self, str_aug1, str_aug2, str_aug3, str_aug4):
         super(TrajCLTrainer, self).__init__()
 
         self.aug1 = get_aug_fn(str_aug1)
         self.aug2 = get_aug_fn(str_aug2)
+        self.aug3 = get_aug_fn(str_aug3)
+        self.aug4 = get_aug_fn(str_aug4)
+
 
         self.embs = pickle.load(open(Config.dataset_embs_file, 'rb')).to('cpu').detach() # tensor
         self.cellspace = pickle.load(open(Config.dataset_cell_file, 'rb'))
 
-        train_dataset, _, _ = read_traj_dataset(Config.dataset_file)
+        train_dataset =  read_spark_dataset(Config.parquet_data_dir)
         self.train_dataloader = DataLoader(train_dataset, 
                                             batch_size = Config.trajcl_batch_size, 
                                             shuffle = False, 
                                             num_workers = 0, 
                                             drop_last = True, 
-                                            collate_fn = partial(collate_and_augment, cellspace = self.cellspace, embs = self.embs, augfn1 = self.aug1, augfn2 = self.aug2) )
+                                            collate_fn = partial(collate_and_augment, cellspace = self.cellspace, embs = self.embs, augfn1 = self.aug1, augfn2 = self.aug2, augfn3=self.aug3,augfn4 = self.aug4 ) )
         
         self.model = TrajCL().to(Config.device)
         self.checkpoint_file = '{}/{}_TrajCL_best{}.pt'.format(Config.checkpoint_dir, Config.dataset_prefix, Config.dumpfile_uniqueid)
@@ -176,7 +186,7 @@ class TrajCLTrainer:
                 optimizer.zero_grad()
 
                 trajs1_emb, trajs1_emb_p, trajs1_len, trajs2_emb, trajs2_emb_p, trajs2_len = batch
-
+                # print(trajs1_emb.dtype, trajs1_emb_p.dtype, trajs1_len.dtype, trajs2_emb.dtype, trajs2_emb_p.dtype, trajs2_len.dtype )
                 model_rtn = self.model(trajs1_emb, trajs1_emb_p, trajs1_len, trajs2_emb, trajs2_emb_p, trajs2_len)
                 loss = self.model.loss(*model_rtn)
 
@@ -185,7 +195,7 @@ class TrajCLTrainer:
                 loss_ep.append(loss.item())
                 train_gpu.append(tool_funcs.GPUInfo.mem()[0])
                 train_ram.append(tool_funcs.RAMInfo.mem())
-
+                # print(i_batch)
                 if i_batch % 100 == 0 and i_batch:
                     logging.debug("[Training] ep-batch={}-{}, loss={:.3f}, @={:.3f}, gpu={}, ram={}" \
                             .format(i_ep, i_batch, loss.item(), time.time() - _time_batch_start,

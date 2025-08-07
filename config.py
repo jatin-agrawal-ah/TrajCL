@@ -39,7 +39,7 @@ class Config:
     cellspace_buffer = 500.0
 
     #===========TrajCL=============
-    trajcl_batch_size = 128 
+    trajcl_batch_size = 1024
     cell_embedding_dim = 256
     seq_embedding_dim = 256
     moco_proj_dim =  seq_embedding_dim // 2
@@ -53,6 +53,8 @@ class Config:
     trajcl_training_lr_degrade_step = 5
     trajcl_aug1 = 'mask'
     trajcl_aug2 = 'subset'
+    trajcl_aug3 = "simplify"
+    trajcl_aug4 = "shift"
     trajcl_local_mask_sidelen = cell_size * 11
     
     trans_attention_head = 4
@@ -61,8 +63,8 @@ class Config:
     trans_pos_encoder_dropout = 0.1
     trans_hidden_dim = 2048
 
-    traj_simp_dist = 100
-    traj_shift_dist = 200
+    traj_simp_dist = 500
+    traj_shift_dist = 1000
     traj_mask_ratio = 0.3
     traj_add_ratio = 0.3
     traj_subset_ratio = 0.7 # preserved ratio
@@ -100,12 +102,20 @@ class Config:
             cls.min_lat = 41.1001
             cls.max_lon = -8.5192
             cls.max_lat = 41.2086
+        elif 'nyc' == cls.dataset:
+            cls.dataset_prefix = 'nyc'
+            cls.min_lon = -74.2591
+            cls.min_lat = 40.4774
+            cls.max_lon = -73.7004
+            cls.max_lat = 40.9176 
+            cls.cell_size = 500
         else:
             pass
         
         cls.dataset_file = cls.root_dir + '/data/' + cls.dataset_prefix
         cls.dataset_cell_file = cls.dataset_file + '_cell' + str(int(cls.cell_size)) + '_cellspace.pkl'
         cls.dataset_embs_file = cls.dataset_file + '_cell' + str(int(cls.cell_size)) + '_embdim' + str(cls.cell_embedding_dim) + '_embs.pkl'
+        cls.parquet_data_dir = "/home/sagemaker-user/TrajCL/data/parquet_files/nyc_v2"
         set_seed(cls.seed)
 
         cls.moco_proj_dim =  cls.seq_embedding_dim // 2

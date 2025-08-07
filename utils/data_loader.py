@@ -1,10 +1,16 @@
 import os
 import time
 import logging
-import pickle5 as pickle
 import pandas as pd
 from torch.utils.data import Dataset
+import pickle
+from ah_databricks_data_loader import DatabricksDataLoader
+from torch.utils.data import IterableDataset
+import numpy as np
+import torch
 
+def read_spark_dataset(data_dir):
+    return TrajDatasetSpark(data_dir)
 # 1) read raw pd, 2) split into 3 partitions
 def read_traj_dataset(file_path):
     logging.info('[Load traj dataset] START.')
@@ -24,6 +30,18 @@ def read_traj_dataset(file_path):
                 .format(time.time() - _time, l, len(_train), len(_eval), len(_test)))
     return _train, _eval, _test
 
+class TrajDatasetSpark(IterableDataset):
+    def __init__(self, data_dir):
+        # data: DataFrame
+        self.files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith(".parquet")]
+        print("Read spark files")
+
+    def __iter__(self):
+        for file_path in self.files:
+            df = pd.read_parquet(file_path)
+            features = df["merc_seq_filtered"].values
+            for feature in features:
+                yield torch.tensor(np.stack(feature))
 
 class TrajDataset(Dataset):
     def __init__(self, data):

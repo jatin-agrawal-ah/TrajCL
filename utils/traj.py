@@ -48,7 +48,8 @@ def get_aug_fn(name: str):
 def merc2cell2(src, cs: CellSpace):
     # convert and remove consecutive duplicates
     tgt = [ (cs.get_cellid_by_point(*p), p) for p in src]
-    tgt = [v for i, v in enumerate(tgt) if i == 0 or v[0] != tgt[i-1][0]]
+    # don't execute this if you want to keep the consecutive duplicate points. 
+    # tgt = [v for i, v in enumerate(tgt) if i == 0 or v[0] != tgt[i-1][0]]
     tgt, tgt_p = zip(*tgt)
     return tgt, tgt_p
 
