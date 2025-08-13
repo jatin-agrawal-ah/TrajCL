@@ -34,3 +34,24 @@ def rdp(points, epsilon):
         results = [points[0], points[-1]]
 
     return results
+
+
+def rdp_with_time_indices(points, time_indices, epsilon):
+    dmax = 0.0
+    index = 0
+    for i in range(1, len(points) - 1):
+        d = point_line_distance(points[i], points[0], points[-1])
+        if d > dmax:
+            index = i
+            dmax = d
+
+    if dmax >= epsilon:
+        left, time_left = rdp_with_time_indices(points[:index+1], time_indices[:index+1], epsilon)
+        right, time_right = rdp_with_time_indices(points[index:], time_indices[index:], epsilon)
+        results = left[:-1] + right
+        time_results = time_left[:-1] + time_right
+    else:
+        results = [points[0], points[-1]]
+        time_results = [time_indices[0], time_indices[-1]]
+
+    return results, time_results

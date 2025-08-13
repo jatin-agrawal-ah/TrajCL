@@ -25,7 +25,28 @@ class PositionalEncoding(nn.Module):
     def forward(self, token_embedding: torch.Tensor):
         return self.dropout(token_embedding + self.pos_embedding[:token_embedding.size(0), :])
 
+class TimeBasedPosEncoding(nn.Module):
+    def __init__(self, emb_size: int, dropout: float, maxlen: int = 145):
+        super(TimeBasedPosEncoding, self).__init__()
+        den = torch.exp(torch.arange(0, emb_size, 2) * (-math.log(10000)) / emb_size)
+        pos = torch.arange(0, maxlen).reshape(maxlen, 1)
+        pos_embedding = torch.zeros((maxlen, emb_size))
+        pos_embedding[:, 0::2] = torch.sin(pos * den)
+        pos_embedding[:, 1::2] = torch.cos(pos * den)
 
+        self.dropout = nn.Dropout(dropout)
+        self.register_buffer('pos_embedding', pos_embedding)
+
+    def forward(self, token_embedding: torch.Tensor, time_indices: torch.LongTensor):
+        """
+        Args:
+            token_embedding: Tensor of shape (seq_len, batch_size, emb_size)
+            time_indices: Tensor of shape (seq_len, batch_size) containing time indices
+        """
+        # Ensure time_indices is a LongTensor
+        if not isinstance(time_indices, torch.LongTensor):
+            time_indices = time_indices.long()
+        return self.dropout(token_embedding + self.pos_embedding[time_indices])
 
 class DualSTB(nn.Module):
     def __init__(self, ninput, nhidden, nhead, nlayer, attn_dropout, pos_droput):
@@ -66,6 +87,45 @@ class DualSTB(nn.Module):
         return rtn # return traj embeddings
 
 
+class DualSTBWithTime(nn.Module):
+    def __init__(self, ninput, nhidden, nhead, nlayer, attn_dropout, pos_droput):
+        super(DualSTBWithTime, self).__init__()
+        self.ninput = ninput
+        self.nhidden = nhidden
+        self.nhead = nhead
+        self.pos_encoder = TimeBasedPosEncoding(ninput, pos_droput)
+        
+        structural_attn_layers = nn.TransformerEncoderLayer(ninput, nhead, nhidden, attn_dropout)
+        self.structural_attn = nn.TransformerEncoder(structural_attn_layers, nlayer)
+        
+        self.spatial_attn = SpatialMSM(4, 32, 1, 3, attn_dropout, pos_droput)
+        self.gamma_param = nn.Parameter(data = torch.tensor(0.5), requires_grad = True)
+
+    def forward(self, src, time_indices, attn_mask, src_padding_mask, src_len, srcspatial):
+        # src: [seq_len, batch_size, emb_size]
+        # time_indices: [seq_len, batch_size] containing time indices
+        # attn_mask: [seq_len, seq_len]
+        # src_padding_mask: [batch_size, seq_len]
+        # src_len: [batch_size]
+        # srcspatial : [seq_len, batch_size, 4]
+
+        if srcspatial is not None:
+            _, attn_spatial = self.spatial_attn(srcspatial, attn_mask, src_padding_mask, src_len)
+            attn_spatial = attn_spatial.repeat(self.nhead, 1, 1)
+            gamma = torch.sigmoid(self.gamma_param) * 10
+            attn_spatial = gamma * attn_spatial
+        else:
+            attn_spatial = None
+
+        src = self.pos_encoder(src, time_indices)
+        rtn = self.structural_attn(src, attn_spatial, src_padding_mask)
+
+        mask = 1 - src_padding_mask.T.unsqueeze(-1).expand(rtn.shape).float()
+        rtn = torch.sum(mask * rtn, 0)
+        rtn = rtn / src_len.unsqueeze(-1).expand(rtn.shape)
+
+        return rtn # return traj embeddings
+    
 class SpatialMSM(nn.Module):
     def __init__(self, ninput, nhidden, nhead, nlayer, attn_dropout, pos_droput):
         super(SpatialMSM, self).__init__()
@@ -94,7 +154,35 @@ class SpatialMSM(nn.Module):
         # attn = [batch_size, seq_len, seq_len]
         return rtn, attn
 
+class SpatialMSMWithTime(nn.Module):
+    def __init__(self, ninput, nhidden, nhead, nlayer, attn_dropout, pos_droput):
+        super(SpatialMSMWithTime, self).__init__()
+        self.ninput = ninput
+        self.nhidden = nhidden
+        self.pos_encoder = TimeBasedPosEncoding(ninput, pos_droput)
+        trans_encoder_layers = SpatialMSMLayer(ninput, nhead, nhidden, attn_dropout)
+        self.trans_encoder = SpatialMSMEncoder(trans_encoder_layers, nlayer)
+        
+    
+    def forward(self, src, time_indices, attn_mask, src_padding_mask, src_len):
+        # src: [seq_len, batch_size, emb_size]
+        # time_indices: [seq_len, batch_size] containing time indices
+        # attn_mask: [seq_len, seq_len]
+        # src_padding_mask: [batch_size, seq_len]
+        # src_len: [batch_size]
 
+        src = self.pos_encoder(src, time_indices)
+        rtn, attn = self.trans_encoder(src, attn_mask, src_padding_mask)
+
+        # average pooling
+        mask = 1 - src_padding_mask.T.unsqueeze(-1).expand(rtn.shape).float()
+        rtn = torch.sum(mask * rtn, 0)
+        rtn = rtn / src_len.unsqueeze(-1).expand(rtn.shape)
+
+        # rtn = [batch_size, traj_emb]
+        # attn = [batch_size, seq_len, seq_len]
+        return rtn, attn
+    
 # ref: torch.nn.modules.transformer
 class SpatialMSMEncoder(nn.Module):
 

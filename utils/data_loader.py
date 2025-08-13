@@ -39,9 +39,14 @@ class TrajDatasetSpark(IterableDataset):
     def __iter__(self):
         for file_path in self.files:
             df = pd.read_parquet(file_path)
-            features = df["merc_seq_filtered"].values
-            for feature in features:
-                yield torch.tensor(np.stack(feature))
+            loc_features = df["merc_seq_filtered"].values
+            time_features = df["time_index_list"].values
+            for loc_feature, time_feature in zip(loc_features, time_features):
+                output = {
+                    "merc_seq": loc_feature,
+                    "time_indices": time_feature
+                }
+                yield output
 
 class TrajDataset(Dataset):
     def __init__(self, data):

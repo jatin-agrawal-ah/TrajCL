@@ -21,7 +21,7 @@ class Config:
     # device = torch.device("cpu")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     root_dir = os.path.abspath(__file__)[:-10] # dont use os.getcwd()
-    checkpoint_dir = root_dir + '/exp/snapshots'
+    checkpoint_dir = root_dir + '/exp/v2'
 
     dataset = 'porto'
     dataset_prefix = ''
@@ -63,8 +63,11 @@ class Config:
     trans_pos_encoder_dropout = 0.1
     trans_hidden_dim = 2048
 
-    traj_simp_dist = 500
-    traj_shift_dist = 1000
+    traj_time_shift_min = 0
+    traj_time_shift_max = 10
+    traj_max_time = 143
+    traj_simp_dist = 250
+    traj_shift_dist = 500
     traj_mask_ratio = 0.3
     traj_add_ratio = 0.3
     traj_subset_ratio = 0.7 # preserved ratio
@@ -72,17 +75,17 @@ class Config:
     test_exp1_lcss_edr_epsilon = 0.25 # normalized
 
 
-    #===========trajsimi=============
-    trajsimi_encoder_name = 'TrajCL'
-    trajsimi_encoder_mode = 'finetune_all'
-    trajsimi_measure_fn_name = 'edwp'
+    # #===========trajsimi=============
+    # trajsimi_encoder_name = 'TrajCL'
+    # trajsimi_encoder_mode = 'finetune_all'
+    # trajsimi_measure_fn_name = 'edwp'
 
-    trajsimi_batch_size = 128
-    trajsimi_epoch = 30
-    trajsimi_training_bad_patience = 10
-    trajsimi_learning_rate = 0.0001
-    trajsimi_learning_weight_decay = 0.0001
-    trajsimi_finetune_lr_rescale = 0.5
+    # trajsimi_batch_size = 128
+    # trajsimi_epoch = 30
+    # trajsimi_training_bad_patience = 10
+    # trajsimi_learning_rate = 0.0001
+    # trajsimi_learning_weight_decay = 0.0001
+    # trajsimi_finetune_lr_rescale = 0.5
 
 
     @classmethod
@@ -108,14 +111,14 @@ class Config:
             cls.min_lat = 40.4774
             cls.max_lon = -73.7004
             cls.max_lat = 40.9176 
-            cls.cell_size = 500
+            cls.cell_size = 250
         else:
             pass
         
         cls.dataset_file = cls.root_dir + '/data/' + cls.dataset_prefix
         cls.dataset_cell_file = cls.dataset_file + '_cell' + str(int(cls.cell_size)) + '_cellspace.pkl'
         cls.dataset_embs_file = cls.dataset_file + '_cell' + str(int(cls.cell_size)) + '_embdim' + str(cls.cell_embedding_dim) + '_embs.pkl'
-        cls.parquet_data_dir = "/home/sagemaker-user/TrajCL/data/parquet_files/nyc_v2"
+        cls.parquet_data_dir = "/home/sagemaker-user/TrajCL/data/parquet_files/nyc_with_time"
         set_seed(cls.seed)
 
         cls.moco_proj_dim =  cls.seq_embedding_dim // 2
