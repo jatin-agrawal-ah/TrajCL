@@ -41,8 +41,16 @@ class CellSpace:
 
 
     def get_xyidx_by_point(self, x, y):
-        assert self.x_min <= x <= self.x_max \
-                and self.y_min <= y <= self.y_max
+        if x<self.x_min:
+            x = self.x_min
+        elif x>self.x_max:
+            x = self.x_max
+        if y<self.y_min:
+            y = self.y_min
+        elif y>self.y_max:
+            y = self.y_max
+        # assert self.x_min <= x <= self.x_max \
+        #         and self.y_min <= y <= self.y_max
         
         i_x = int(x - self.x_min) // self.x_unit
         i_y = int(y - self.y_min) // self.y_unit

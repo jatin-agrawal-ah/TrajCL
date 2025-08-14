@@ -78,7 +78,7 @@ def translate(traj, time_indices):
     theta = random.uniform(0, 2 * np.pi)
 
     # Step 2: Define shift amount in meters
-    distance =random.randint(2000,4000)  # shift trajectory by 500 meters
+    distance =random.randint(2000,3000)  # shift trajectory by 500 meters
     dx = distance * np.cos(theta)
     dy = distance * np.sin(theta)
 

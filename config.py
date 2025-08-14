@@ -39,7 +39,7 @@ class Config:
     cellspace_buffer = 500.0
 
     #===========TrajCL=============
-    trajcl_batch_size = 512
+    trajcl_batch_size = 256
     cell_embedding_dim = 256
     seq_embedding_dim = 256
     moco_proj_dim =  seq_embedding_dim // 2

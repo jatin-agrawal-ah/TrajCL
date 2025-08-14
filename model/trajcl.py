@@ -94,8 +94,8 @@ def collate_and_augment(batch, cellspace, embs, pos_aug_list, neg_aug_list):
     trajs1, trajs2 = [], []
     time_indices1, time_indices2 = [], []
     for l,t in zip(trajs, time_indices):
-        random_aug_fn_1 = np.random.randint(0,len(pos_aug_list)-1)  # randomly choose one of the two augmentation pairs
-        random_aug_fn_2 = np.random.randint(0,len(pos_aug_list)-1)  # randomly choose one of the two augmentation pairs
+        random_aug_fn_1 = np.random.randint(0,len(pos_aug_list))  # randomly choose one of the two augmentation pairs
+        random_aug_fn_2 = np.random.randint(0,len(pos_aug_list))  # randomly choose one of the two augmentation pairs
         new_l, new_t = pos_aug_list[random_aug_fn_1](l, t)
         trajs1.append(new_l)
         time_indices1.append(new_t)
@@ -115,7 +115,7 @@ def collate_and_augment(batch, cellspace, embs, pos_aug_list, neg_aug_list):
     
     neg_traj, neg_time_indices = [], []
     for l,t in zip(trajs, time_indices):
-        neg_aug_fn_1 = np.random.randint(0, len(neg_aug_list)-1)  # randomly choose one of the two augmentation pairs
+        neg_aug_fn_1 = np.random.randint(0, len(neg_aug_list))  # randomly choose one of the two augmentation pairs
         new_l, new_t = neg_aug_list[neg_aug_fn_1](l, t)
         neg_traj.append(new_l)
         neg_time_indices.append(new_t)
