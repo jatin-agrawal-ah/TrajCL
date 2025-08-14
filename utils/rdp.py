@@ -6,7 +6,7 @@ def distance(a, b):
 
 
 def point_line_distance(point, start, end):
-    if (start == end):
+    if (start[0] == end[0] and start[1] == end[1]):
         return distance(point, start)
     else:
         n = abs(

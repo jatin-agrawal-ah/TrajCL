@@ -21,7 +21,7 @@ class Config:
     # device = torch.device("cpu")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     root_dir = os.path.abspath(__file__)[:-10] # dont use os.getcwd()
-    checkpoint_dir = root_dir + '/exp/v2'
+    checkpoint_dir = root_dir + '/exp/v3'
 
     dataset = 'porto'
     dataset_prefix = ''
@@ -39,7 +39,7 @@ class Config:
     cellspace_buffer = 500.0
 
     #===========TrajCL=============
-    trajcl_batch_size = 1024
+    trajcl_batch_size = 512
     cell_embedding_dim = 256
     seq_embedding_dim = 256
     moco_proj_dim =  seq_embedding_dim // 2
@@ -55,6 +55,9 @@ class Config:
     trajcl_aug2 = 'subset'
     trajcl_aug3 = "simplify"
     trajcl_aug4 = "shift"
+    trajcl_neg_aug1 = 'reverse'
+    trajcl_neg_aug2 = 'large_time_shift'
+    trajcl_neg_aug3 = 'translate'
     trajcl_local_mask_sidelen = cell_size * 11
     
     trans_attention_head = 4
@@ -64,13 +67,15 @@ class Config:
     trans_hidden_dim = 2048
 
     traj_time_shift_min = 0
-    traj_time_shift_max = 10
+    traj_time_shift_max = 20
     traj_max_time = 143
     traj_simp_dist = 250
     traj_shift_dist = 500
     traj_mask_ratio = 0.3
     traj_add_ratio = 0.3
     traj_subset_ratio = 0.7 # preserved ratio
+    traj_large_time_shift_min = 70
+    traj_large_time_shift_max = 90
 
     test_exp1_lcss_edr_epsilon = 0.25 # normalized
 
@@ -118,7 +123,7 @@ class Config:
         cls.dataset_file = cls.root_dir + '/data/' + cls.dataset_prefix
         cls.dataset_cell_file = cls.dataset_file + '_cell' + str(int(cls.cell_size)) + '_cellspace.pkl'
         cls.dataset_embs_file = cls.dataset_file + '_cell' + str(int(cls.cell_size)) + '_embdim' + str(cls.cell_embedding_dim) + '_embs.pkl'
-        cls.parquet_data_dir = "/home/sagemaker-user/TrajCL/data/parquet_files/nyc_with_time"
+        cls.parquet_data_dir = "/home/sagemaker-user/TrajCL/data/parquet_files/nyc_with_time_v2"
         set_seed(cls.seed)
 
         cls.moco_proj_dim =  cls.seq_embedding_dim // 2
