@@ -17,7 +17,7 @@ from utils.data_loader import read_traj_dataset, read_spark_dataset
 from utils.traj import *
 from utils import tool_funcs
 import warnings
-
+import os
 warnings.filterwarnings("ignore", message=".*Support for mismatched src_key_padding_mask and mask is deprecated.*")
 
 
@@ -170,6 +170,8 @@ class TrajCLTrainer:
                                             collate_fn = partial(collate_and_augment, cellspace = self.cellspace, embs = self.embs, aug_func_list = aug_fn_list) )
 
         self.model = TrajCL().to(Config.device)
+        if os.path.exists(Config.checkpoint_dir)==False:
+            os.makedirs(Config.checkpoint_dir)
         self.checkpoint_file = '{}/{}_TrajCL_best{}.pt'.format(Config.checkpoint_dir, Config.dataset_prefix, Config.dumpfile_uniqueid)
 
 
