@@ -21,7 +21,7 @@ class Config:
     # device = torch.device("cpu")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     root_dir = os.path.abspath(__file__)[:-10] # dont use os.getcwd()
-    checkpoint_dir = root_dir + '/exp/v2'
+    checkpoint_dir = root_dir + '/exp/v2.1'
 
     dataset = 'porto'
     dataset_prefix = ''
@@ -39,7 +39,7 @@ class Config:
     cellspace_buffer = 500.0
 
     #===========TrajCL=============
-    trajcl_batch_size = 1024
+    trajcl_batch_size = 256
     cell_embedding_dim = 256
     seq_embedding_dim = 256
     moco_proj_dim =  seq_embedding_dim // 2
@@ -118,7 +118,7 @@ class Config:
         cls.dataset_file = cls.root_dir + '/data/' + cls.dataset_prefix
         cls.dataset_cell_file = cls.dataset_file + '_cell' + str(int(cls.cell_size)) + '_cellspace.pkl'
         cls.dataset_embs_file = cls.dataset_file + '_cell' + str(int(cls.cell_size)) + '_embdim' + str(cls.cell_embedding_dim) + '_embs.pkl'
-        cls.parquet_data_dir = "/home/sagemaker-user/TrajCL/data/parquet_files/nyc_with_time"
+        cls.parquet_data_dir = "/home/sagemaker-user/TrajCL/data/parquet_files/nyc_with_time_v2"
         set_seed(cls.seed)
 
         cls.moco_proj_dim =  cls.seq_embedding_dim // 2

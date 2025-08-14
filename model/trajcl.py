@@ -77,7 +77,7 @@ class TrajCL(nn.Module):
         return self
 
 
-def collate_and_augment(batch, cellspace, embs, augfn1, augfn2, augfn3, augfn4):
+def collate_and_augment(batch, cellspace, embs, aug_func_list):
     # trajs: list of [[lon, lat], [,], ...]
 
     # 1. augment the input traj in order to form 2 augmented traj views
@@ -85,27 +85,20 @@ def collate_and_augment(batch, cellspace, embs, augfn1, augfn2, augfn3, augfn4):
     # 3. read cell embeddings and form batch tensors (sort, pad)
     trajs = [t['merc_seq'] for t in batch]
     time_indices = [t['time_indices'] for t in batch]
-    random_int = np.random.randint(0,1)
-    if random_int==0:
-        trajs1, trajs2 = [], []
-        time_indices1, time_indices2 = [], []
-        for l,t in zip(trajs, time_indices):
-            new_l, new_t = augfn1(l, t)
-            trajs1.append(new_l)
-            time_indices1.append(new_t)
-            new_l, new_t = augfn2(l, t)
-            trajs2.append(new_l)
-            time_indices2.append(new_t)
-    else:
-        trajs1, trajs2 = [], []
-        time_indices1, time_indices2 = [], []
-        for l,t in zip(trajs, time_indices):
-            new_l, new_t = augfn3(l, t)
-            trajs1.append(new_l)
-            time_indices1.append(new_t)
-            new_l, new_t = augfn4(l, t)
-            trajs2.append(new_l)
-            time_indices2.append(new_t)
+    
+    trajs1, trajs2 = [], []
+    time_indices1, time_indices2 = [], []
+    for l,t in zip(trajs, time_indices):
+        random_int = np.random.randint(0,len(aug_func_list))
+        augfn1 = aug_func_list[random_int]
+        new_l, new_t = augfn1(l, t)
+        trajs1.append(new_l)
+        time_indices1.append(new_t)
+        random_int = np.random.randint(0,len(aug_func_list))
+        augfn2 = aug_func_list[random_int]
+        new_l, new_t = augfn2(l, t)
+        trajs2.append(new_l)
+        time_indices2.append(new_t)
 
 
     trajs1_cell, trajs1_p = zip(*[merc2cell2(t, cellspace) for t in trajs1])
@@ -164,7 +157,7 @@ class TrajCLTrainer:
         self.aug2 = get_aug_fn(str_aug2)
         self.aug3 = get_aug_fn(str_aug3)
         self.aug4 = get_aug_fn(str_aug4)
-
+        aug_fn_list = [self.aug1, self.aug2, self.aug3, self.aug4]
         self.embs = pickle.load(open(Config.dataset_embs_file, 'rb')).to('cpu').detach() # tensor
         self.cellspace = pickle.load(open(Config.dataset_cell_file, 'rb'))
 
@@ -174,7 +167,7 @@ class TrajCLTrainer:
                                             shuffle = False, 
                                             num_workers = 0, 
                                             drop_last = True, 
-                                            collate_fn = partial(collate_and_augment, cellspace = self.cellspace, embs = self.embs, augfn1 = self.aug1, augfn2 = self.aug2, augfn3=self.aug3,augfn4 = self.aug4) )
+                                            collate_fn = partial(collate_and_augment, cellspace = self.cellspace, embs = self.embs, aug_func_list = aug_fn_list) )
 
         self.model = TrajCL().to(Config.device)
         self.checkpoint_file = '{}/{}_TrajCL_best{}.pt'.format(Config.checkpoint_dir, Config.dataset_prefix, Config.dumpfile_uniqueid)

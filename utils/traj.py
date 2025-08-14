@@ -24,7 +24,7 @@ def simplify(src, time_indices=None):
 def time_shift(time_indices=None):
     time_shift_val = random.randint(Config.traj_time_shift_min, Config.traj_time_shift_max)
     if time_indices is not None:
-        return [(t + time_shift_val) for t in time_indices if t + time_shift_val <= Config.traj_max_time]
+        return [(t + time_shift_val) if t + time_shift_val <= Config.traj_max_time else Config.traj_max_time for t in time_indices]
     else:
         return None
 
