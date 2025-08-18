@@ -103,6 +103,40 @@ def generate_spatial_features(src, cs: CellSpace):
     return tgt
 
 
+def generate_spatio_temporal_features(src, time_indices, cs: CellSpace):
+    # src = [length, 2]
+    tgt = []
+    lens = []
+    for p1, p2 in tool_funcs.pairwise(src):
+        lens.append(tool_funcs.l2_distance(p1[0], p1[1], p2[0], p2[1]))
+
+    for i in range(1, len(src) - 1):
+        dist = (lens[i-1] + lens[i]) / 2
+        velocity_l = lens[i-1] / ((time_indices[i] - time_indices[i-1])*600) if (time_indices[i] - time_indices[i-1]) > 0 else 0
+        velocity_r = lens[i] / ((time_indices[i+1] - time_indices[i])*600) if (time_indices[i+1] - time_indices[i]) > 0 else 0
+        dist = dist / (Config.trajcl_local_mask_sidelen / 1.414) # float_ceil(sqrt(2))
+
+        radian = math.pi - math.atan2(src[i-1][0] - src[i][0],  src[i-1][1] - src[i][1]) \
+                        + math.atan2(src[i+1][0] - src[i][0],  src[i+1][1] - src[i][1])
+        radian = 1 - abs(radian) / math.pi
+
+        x = (src[i][0] - cs.x_min) / (cs.x_max - cs.x_min)
+        y = (src[i][1] - cs.y_min)/ (cs.y_max - cs.y_min)
+        tgt.append( [x, y, dist, radian, velocity_l, velocity_r] )
+
+    x = (src[0][0] - cs.x_min) / (cs.x_max - cs.x_min)
+    y = (src[0][1] - cs.y_min)/ (cs.y_max - cs.y_min)
+    velocity_r = lens[0]/ ((time_indices[1] - time_indices[0])*600) if (time_indices[1] - time_indices[0]) > 0 else 0
+    tgt.insert(0, [x, y, 0.0, 0.0, 0.0, velocity_r] )
+
+    x = (src[-1][0] - cs.x_min) / (cs.x_max - cs.x_min)
+    y = (src[-1][1] - cs.y_min)/ (cs.y_max - cs.y_min)
+    velocity_l = lens[-1]/ ((time_indices[-1] - time_indices[-2])*600) if (time_indices[-1] - time_indices[-2]) > 0 else 0
+    tgt.append( [x, y, 0.0, 0.0, velocity_l, 0.0] )
+    # tgt = [length, 5]
+    return tgt
+
+
 def traj_len(src):
     length = 0.0
     for p1, p2 in tool_funcs.pairwise(src):

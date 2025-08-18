@@ -104,8 +104,8 @@ def collate_and_augment(batch, cellspace, embs, aug_func_list):
     trajs1_cell, trajs1_p = zip(*[merc2cell2(t, cellspace) for t in trajs1])
     trajs2_cell, trajs2_p = zip(*[merc2cell2(t, cellspace) for t in trajs2])
 
-    trajs1_emb_p = [torch.tensor(generate_spatial_features(t, cellspace)) for t in trajs1_p]
-    trajs2_emb_p = [torch.tensor(generate_spatial_features(t, cellspace)) for t in trajs2_p]
+    trajs1_emb_p = [torch.tensor(generate_spatio_temporal_features(t, time_indices1[i], cellspace)) for i, t in enumerate(trajs1_p)]
+    trajs2_emb_p = [torch.tensor(generate_spatio_temporal_features(t, time_indices2[i], cellspace)) for i, t in enumerate(trajs2_p)]
 
     trajs1_emb_p = pad_sequence(trajs1_emb_p, batch_first = False).to(Config.device)
     trajs2_emb_p = pad_sequence(trajs2_emb_p, batch_first = False).to(Config.device)
@@ -134,7 +134,7 @@ def collate_for_test(batch, cellspace, embs):
     time_indices = [t['time_indices'] for t in batch]
 
     trajs2_cell, trajs2_p = zip(*[merc2cell2(t, cellspace) for t in trajs])
-    trajs2_emb_p = [torch.tensor(generate_spatial_features(t, cellspace)) for t in trajs2_p]
+    trajs2_emb_p = [torch.tensor(generate_spatio_temporal_features(t, time_indices[i], cellspace)) for i, t in enumerate(trajs2_p)]
     trajs2_emb_p = pad_sequence(trajs2_emb_p, batch_first = False).to(Config.device)
 
     trajs2_emb_cell = [embs[list(t)] for t in trajs2_cell]

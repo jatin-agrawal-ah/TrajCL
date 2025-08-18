@@ -98,7 +98,7 @@ class DualSTBWithTime(nn.Module):
         structural_attn_layers = nn.TransformerEncoderLayer(ninput, nhead, nhidden, attn_dropout)
         self.structural_attn = nn.TransformerEncoder(structural_attn_layers, nlayer)
         
-        self.spatial_attn = SpatialMSMWithTime(4, 32, 1, 3, attn_dropout, pos_droput)
+        self.spatial_attn = SpatialMSMWithTime(6, 32, 1, 3, attn_dropout, pos_droput)
         self.gamma_param = nn.Parameter(data = torch.tensor(0.5), requires_grad = True)
 
     def forward(self, src, time_indices, attn_mask, src_padding_mask, src_len, srcspatial):
