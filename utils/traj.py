@@ -96,15 +96,39 @@ def get_aug_fn(name: str):
     return {'straight': straight, 'simplify': simplify, 'shift': shift,
             'mask': mask, 'subset': subset, 'jumble': jumble, 'large_time_shift': large_time_shift, 'translate': translate}.get(name, None)
 
+def get_duplicate_span(lst):
+    spans = []
+    curr_start = 0
+    for i in range(1, len(lst)):
+        if lst[i][0] == lst[curr_start][0] and lst[i][1] == lst[curr_start][1]:
+            continue
+        else:
+            spans.append((curr_start, i - 1))
+            curr_start = i
+    spans.append((curr_start, len(lst) - 1))  # Add the last span
+    return spans
 
 # pair-wise conversion -- structural features and spatial feasures
-def merc2cell2(src, cs: CellSpace):
+def merc2cell2(src, time_indices, cs: CellSpace):
     # convert and remove consecutive duplicates
+    dup_span_list = get_duplicate_span(src)
     tgt = [ (cs.get_cellid_by_point(*p), p) for p in src]
-    # don't execute this if you want to keep the consecutive duplicate points. 
-    # tgt = [v for i, v in enumerate(tgt) if i == 0 or v[0] != tgt[i-1][0]]
-    tgt, tgt_p = zip(*tgt)
-    return tgt, tgt_p
+    final_tgt = []
+    final_time_indices = []
+    for i, span in enumerate(dup_span_list):
+        if span[0]==span[1]:
+            final_tgt.append(tgt[span[0]])
+            final_time_indices.append(time_indices[span[0]])
+        else:
+            # take the first point in the span
+            final_tgt.append(tgt[span[0]])
+            final_time_indices.append(time_indices[span[0]])
+            # take the last point in the span
+            final_tgt.append(tgt[span[1]])
+            final_time_indices.append(time_indices[span[1]])
+
+    tgt, tgt_p = zip(*final_tgt)
+    return tgt, tgt_p, final_time_indices
 
 
 def generate_spatial_features(src, cs: CellSpace):
