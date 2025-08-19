@@ -51,13 +51,8 @@ class Config:
     trajcl_training_lr = 0.001
     trajcl_training_lr_degrade_gamma = 0.5
     trajcl_training_lr_degrade_step = 5
-    trajcl_aug1 = 'mask'
-    trajcl_aug2 = 'subset'
-    trajcl_aug3 = "simplify"
-    trajcl_aug4 = "shift"
-    trajcl_neg_aug1 = 'reverse'
-    trajcl_neg_aug2 = 'large_time_shift'
-    trajcl_neg_aug3 = 'translate'
+    trajcl_pos_aug_list = [ 'simplify', 'shift', 'mask', 'subset']
+    trajcl_neg_aug_list = [ 'large_time_shift', 'translate']
     trajcl_local_mask_sidelen = cell_size * 11
     
     trans_attention_head = 4
@@ -70,7 +65,7 @@ class Config:
     traj_time_shift_max = 20
     traj_max_time = 143
     traj_simp_dist = 250
-    traj_shift_dist = 500
+    traj_shift_dist = 250
     traj_mask_ratio = 0.3
     traj_add_ratio = 0.3
     traj_subset_ratio = 0.7 # preserved ratio

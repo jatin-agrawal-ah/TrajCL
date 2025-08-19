@@ -175,19 +175,12 @@ def collate_for_test(batch, cellspace, embs):
 
 class TrajCLTrainer:
 
-    def __init__(self, str_aug1, str_aug2, str_aug3, str_aug4, str_neg_aug1=None, str_neg_aug2=None, str_neg_aug3=None):
+    def __init__(self, pos_aug_str_list, neg_aug_str_list):
         super(TrajCLTrainer, self).__init__()
 
-        self.aug1 = get_aug_fn(str_aug1)
-        self.aug2 = get_aug_fn(str_aug2)
-        self.aug3 = get_aug_fn(str_aug3)
-        self.aug4 = get_aug_fn(str_aug4)
-        self.neg_aug1 = get_aug_fn(str_neg_aug1) if str_neg_aug1 else None
-        self.neg_aug2 = get_aug_fn(str_neg_aug2) if str_neg_aug2 else None
-        self.neg_aug3 = get_aug_fn(str_neg_aug3) if str_neg_aug3 else None
+        pos_aug_list = [get_aug_fn(name) for name in pos_aug_str_list]
+        neg_aug_list = [get_aug_fn(name) for name in neg_aug_str_list]
 
-        pos_aug_list = [self.aug1, self.aug2, self.aug3, self.aug4]
-        neg_aug_list = [self.neg_aug1, self.neg_aug2, self.neg_aug3]
         self.embs = pickle.load(open(Config.dataset_embs_file, 'rb')).to('cpu').detach() # tensor
         self.cellspace = pickle.load(open(Config.dataset_cell_file, 'rb'))
 

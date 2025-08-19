@@ -57,11 +57,17 @@ def subset(src, time_indices=None):
     else:
         return src[start_idx: end_idx], time_indices[start_idx: end_idx]
 
-def reverse(src, time_indices=None):
-    if time_indices is not None:
-        return src[::-1], time_indices
-    else:
-        return src[::-1]
+# def reverse(src, time_indices=None):
+#     if time_indices is not None:
+#         return src[::-1], time_indices
+#     else:
+#         return src[::-1]
+
+def jumble(src, time_indices=None):
+    l = len(src)
+    arr = np.array(src)
+    jumble_idx = np.random.choice(l, l, replace=False)
+    return arr[jumble_idx].tolist() , time_indices
 
 
 def large_time_shift(src, time_indices=None):
@@ -78,7 +84,7 @@ def translate(traj, time_indices):
     theta = random.uniform(0, 2 * np.pi)
 
     # Step 2: Define shift amount in meters
-    distance =random.randint(2000,3000)  # shift trajectory by 500 meters
+    distance =random.randint(1000,3000)  # shift trajectory by 500 meters
     dx = distance * np.cos(theta)
     dy = distance * np.sin(theta)
 
@@ -88,7 +94,7 @@ def translate(traj, time_indices):
 
 def get_aug_fn(name: str):
     return {'straight': straight, 'simplify': simplify, 'shift': shift,
-            'mask': mask, 'subset': subset, 'reverse': reverse, 'large_time_shift': large_time_shift, 'translate': translate}.get(name, None)
+            'mask': mask, 'subset': subset, 'jumble': jumble, 'large_time_shift': large_time_shift, 'translate': translate}.get(name, None)
 
 
 # pair-wise conversion -- structural features and spatial feasures
