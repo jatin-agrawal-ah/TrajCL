@@ -177,7 +177,8 @@ class TrajCLTrainer:
 
     def __init__(self, pos_aug_str_list, neg_aug_str_list):
         super(TrajCLTrainer, self).__init__()
-
+        self.pos_aug_str_list = pos_aug_str_list
+        self.neg_aug_str_list = neg_aug_str_list
         pos_aug_list = [get_aug_fn(name) for name in pos_aug_str_list]
         neg_aug_list = [get_aug_fn(name) for name in neg_aug_str_list]
 
@@ -341,8 +342,8 @@ class TrajCLTrainer:
 
     def save_checkpoint(self):
         torch.save({'model_state_dict': self.model.state_dict(),
-                    'aug1': self.aug1.__name__,
-                    'aug2': self.aug2.__name__},
+                    "pos_aug_str_list": self.pos_aug_str_list,
+                    "neg_aug_str_list": self.neg_aug_str_list},
                     self.checkpoint_file)
         return
     

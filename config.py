@@ -21,7 +21,7 @@ class Config:
     # device = torch.device("cpu")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     root_dir = os.path.abspath(__file__)[:-10] # dont use os.getcwd()
-    checkpoint_dir = root_dir + '/exp/v3'
+    checkpoint_dir = root_dir + '/exp/v3.1'
 
     dataset = 'porto'
     dataset_prefix = ''
