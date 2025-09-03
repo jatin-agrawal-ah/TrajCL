@@ -21,7 +21,7 @@ class Config:
     # device = torch.device("cpu")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     root_dir = os.path.abspath(__file__)[:-10] # dont use os.getcwd()
-    checkpoint_dir = root_dir + '/exp/v2.1'
+    checkpoint_dir = root_dir + '/exp/v4.0/'
 
     dataset = 'porto'
     dataset_prefix = ''
@@ -37,6 +37,7 @@ class Config:
     min_traj_len = 20
     cell_size = 100.0
     cellspace_buffer = 500.0
+    max_len_meters = 100000
 
     #===========TrajCL=============
     trajcl_batch_size = 256
@@ -111,6 +112,13 @@ class Config:
             cls.min_lat = 40.4774
             cls.max_lon = -73.7004
             cls.max_lat = 40.9176 
+            cls.cell_size = 250
+        elif 'generic' == cls.dataset:
+            cls.dataset_prefix = 'generic'
+            cls.min_lon = 0
+            cls.min_lat = 0
+            cls.max_lon = 1
+            cls.max_lat = 1
             cls.cell_size = 250
         else:
             pass

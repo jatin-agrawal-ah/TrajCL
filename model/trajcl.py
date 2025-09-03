@@ -76,6 +76,21 @@ class TrajCL(nn.Module):
         self.load_state_dict(checkpoint['model_state_dict'])
         return self
 
+def get_min_max_xy(traj):
+    min_x = min([p[0] for p in traj])
+    max_x = max([p[0] for p in traj])
+    min_y = min([p[1] for p in traj])
+    max_y = max([p[1] for p in traj])
+    return min_x, max_x, min_y, max_y
+
+def calculate_dx_dy(k, min_x, max_x, min_y, max_y):
+    dx = (k - max_x - min_x) / 2
+    dy = (k - max_y - min_y) / 2
+    return dx, dy
+
+def transform_traj(traj, dx, dy):
+    new_traj = [[p[0] + dx, p[1] + dy] for p in traj]
+    return new_traj
 
 def collate_and_augment(batch, cellspace, embs, aug_func_list):
     # trajs: list of [[lon, lat], [,], ...]
@@ -88,15 +103,20 @@ def collate_and_augment(batch, cellspace, embs, aug_func_list):
     
     trajs1, trajs2 = [], []
     time_indices1, time_indices2 = [], []
+
     for l,t in zip(trajs, time_indices):
         random_int = np.random.randint(0,len(aug_func_list))
         augfn1 = aug_func_list[random_int]
+        min_x, max_x, min_y, max_y = get_min_max_xy(l)
+        dx, dy = calculate_dx_dy(Config.max_len_meters, min_x, max_x, min_y, max_y)
         new_l, new_t = augfn1(l, t)
+        new_l = transform_traj(new_l, dx, dy)
         trajs1.append(new_l)
         time_indices1.append(new_t)
         random_int = np.random.randint(0,len(aug_func_list))
         augfn2 = aug_func_list[random_int]
         new_l, new_t = augfn2(l, t)
+        new_l = transform_traj(new_l, dx, dy)
         trajs2.append(new_l)
         time_indices2.append(new_t)
 

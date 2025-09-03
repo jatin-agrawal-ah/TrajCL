@@ -177,3 +177,5 @@ dmypy.json
 
 !.gitkeep
 *.pt
+*pkl
+*.txt
