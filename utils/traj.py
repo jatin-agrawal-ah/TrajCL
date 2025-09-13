@@ -64,14 +64,13 @@ def get_aug_fn(name: str):
 
 
 # pair-wise conversion -- structural features and spatial feasures
-def merc2cell2(src, cs: CellSpace):
+def merc2cell2(src, cs):
     # convert and remove consecutive duplicates
-    tgt = [ (cs.get_cellid_by_point(*p), p) for p in src]
+    tgt = [ (cs.get_parent_child_cellid(*p)) for p in src]
     # don't execute this if you want to keep the consecutive duplicate points. 
     # tgt = [v for i, v in enumerate(tgt) if i == 0 or v[0] != tgt[i-1][0]]
-    tgt, tgt_p = zip(*tgt)
-    return tgt, tgt_p
-
+    tgt_parent, tgt_child = zip(*tgt)
+    return tgt_parent, tgt_child, src
 
 def generate_spatial_features(src, cs: CellSpace):
     # src = [length, 2]

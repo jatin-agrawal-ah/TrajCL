@@ -8,6 +8,7 @@ from ah_databricks_data_loader import DatabricksDataLoader
 from torch.utils.data import IterableDataset
 import numpy as np
 import torch
+import random
 
 def read_spark_dataset(data_dir):
     return TrajDatasetSpark(data_dir)
@@ -34,6 +35,7 @@ class TrajDatasetSpark(IterableDataset):
     def __init__(self, data_dir):
         # data: DataFrame
         self.files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith(".parquet")]
+        self.files = random.sample(self.files, len(self.files))
         print("Read spark files")
 
     def __iter__(self):
