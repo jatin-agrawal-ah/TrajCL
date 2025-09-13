@@ -34,7 +34,7 @@ def init_cellspace():
     return
 
 
-Config.dataset = "generic"
+Config.dataset = "generic_v3"
 Config.post_value_updates()
 
 init_cellspace()

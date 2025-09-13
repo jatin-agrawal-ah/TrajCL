@@ -10,7 +10,7 @@ from torch import Tensor
 # Transformer example: https://github.com/pytorch/examples/blob/master/word_language_model/model.py
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, emb_size: int, dropout: float, maxlen: int = 201):
+    def __init__(self, emb_size: int, dropout: float, maxlen: int = 512):
         super(PositionalEncoding, self).__init__()
         den = torch.exp(torch.arange(0, emb_size, 2) * (-math.log(10000)) / emb_size)
         pos = torch.arange(0, maxlen).reshape(maxlen, 1)
@@ -24,6 +24,29 @@ class PositionalEncoding(nn.Module):
 
     def forward(self, token_embedding: torch.Tensor):
         return self.dropout(token_embedding + self.pos_embedding[:token_embedding.size(0), :])
+
+class TimeEmbedding(nn.Module):
+    def __init__(self, emb_size: int, dropout: float, maxlen: int = 1441):
+        super(TimeBasedPosEncoding, self).__init__()
+        den = torch.exp(torch.arange(0, emb_size, 2) * (-math.log(10000)) / emb_size)
+        pos = torch.arange(0, maxlen).reshape(maxlen, 1)
+        pos_embedding = torch.zeros((maxlen, emb_size))
+        pos_embedding[:, 0::2] = torch.sin(pos * den)
+        pos_embedding[:, 1::2] = torch.cos(pos * den)
+        pos_embedding = pos_embedding.unsqueeze(-2)
+
+        self.dropout = nn.Dropout(dropout)
+        self.register_buffer('time_embedding', pos_embedding)
+
+    def forward(self, token_encodings, time_delta: torch.LongTensor):
+        """
+        Args:
+            time_delta: Time spent at a cell. This can range from 0 to 1440 since it is minutes.
+        """
+        time_embeddings = self.time_embedding[time_delta]
+
+        return torch.cat(token_encodings, time_embeddings, dim = 2)
+
 
 class TimeBasedPosEncoding(nn.Module):
     def __init__(self, emb_size: int, dropout: float, maxlen: int = 145):
@@ -51,7 +74,7 @@ class TimeBasedPosEncoding(nn.Module):
 class DualSTB(nn.Module):
     def __init__(self, ninput, nhidden, nhead, nlayer, attn_dropout, pos_droput):
         super(DualSTB, self).__init__()
-        self.ninput = ninput
+        self.ninput = ninput*2
         self.nhidden = nhidden
         self.nhead = nhead
         self.pos_encoder = PositionalEncoding(ninput, pos_droput)
@@ -76,7 +99,7 @@ class DualSTB(nn.Module):
             attn_spatial = gamma * attn_spatial
         else:
             attn_spatial = None
-
+        
         src = self.pos_encoder(src)
         rtn = self.structural_attn(src, attn_spatial, src_padding_mask)
 
@@ -86,6 +109,48 @@ class DualSTB(nn.Module):
 
         return rtn # return traj embeddings
 
+class DualSTBTimeWeighted(nn.Module):
+    def __init__(self, ninput, nhidden, nhead, nlayer, attn_dropout, pos_droput):
+        super(DualSTBTimeWeighted, self).__init__()
+        self.ninput = ninput
+        self.nhidden = nhidden
+        self.nhead = nhead
+        self.pos_encoder = PositionalEncoding(ninput, pos_droput)
+        
+        structural_attn_layers = nn.TransformerEncoderLayer(ninput, nhead, nhidden, attn_dropout)
+        self.structural_attn = nn.TransformerEncoder(structural_attn_layers, nlayer)
+        
+        self.spatial_attn = SpatialMSM(4, 32, 1, 3, attn_dropout, pos_droput)
+        self.gamma_param = nn.Parameter(data = torch.tensor(0.5), requires_grad = True)
+
+    def forward(self, src, time_deltas, attn_mask, src_padding_mask, src_len, srcspatial):
+        # src: [seq_len, batch_size, emb_size]
+        # time_deltas: [seq_len, batch_size]
+        # attn_mask: [seq_len, seq_len]
+        # src_padding_mask: [batch_size, seq_len]
+        # src_len: [batch_size]
+        # srcspatial : [seq_len, batch_size, 4]
+
+        if srcspatial is not None:
+            _, attn_spatial = self.spatial_attn(srcspatial, attn_mask, src_padding_mask, src_len)
+            attn_spatial = attn_spatial.repeat(self.nhead, 1, 1)
+            gamma = torch.sigmoid(self.gamma_param) * 10
+            attn_spatial = gamma * attn_spatial
+        else:
+            attn_spatial = None
+
+        src = self.pos_encoder(src)
+        rtn = self.structural_attn(src, attn_spatial, src_padding_mask)
+
+        mask = 1 - src_padding_mask.T.unsqueeze(-1).expand(rtn.shape).float()
+        rtn = mask*rtn
+        w_norm = time_deltas / (time_deltas.sum(dim=0, keepdim=True) + 1e-8)   # (seq_len, batch)
+        # expand weights to match h
+        w_exp = w_norm.unsqueeze(-1)                       # (seq_len, batch, 1)
+        # weighted sum across seq_len
+        rtn = (rtn * w_exp).sum(dim=0)
+
+        return rtn
 
 class DualSTBWithTime(nn.Module):
     def __init__(self, ninput, nhidden, nhead, nlayer, attn_dropout, pos_droput):

@@ -33,8 +33,8 @@ if __name__ == '__main__':
     logging.info('=================================')
     logging.info(Config.to_str())
     logging.info('=================================')
-
-    trajcl = TrajCLTrainer(Config.trajcl_aug1, Config.trajcl_aug2, Config.trajcl_aug3, Config.trajcl_aug4)
+    logging.info(Config.trajcl_aug_list)
+    trajcl = TrajCLTrainer(Config.trajcl_aug_list)
     trajcl.train()
     trajcl.test()
     
