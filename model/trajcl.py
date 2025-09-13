@@ -12,7 +12,7 @@ from functools import partial
 
 from config import Config
 from model.moco import MoCo
-from model.dual_attention import DualSTB, DualSTBWithTime
+from model.dual_attention import DualSTB, DualSTBWithTime, DualSTBTimeWeighted
 from utils.data_loader import read_traj_dataset, read_spark_dataset
 from utils.traj import *
 from utils import tool_funcs
@@ -27,13 +27,13 @@ class TrajCL(nn.Module):
     def __init__(self):
         super(TrajCL, self).__init__()
 
-        encoder_q = DualSTB(Config.seq_embedding_dim, 
+        encoder_q = DualSTBTimeWeighted(Config.seq_embedding_dim, 
                                             Config.trans_hidden_dim, 
                                             Config.trans_attention_head, 
                                             Config.trans_attention_layer, 
                                             Config.trans_attention_dropout, 
                                             Config.trans_pos_encoder_dropout)
-        encoder_k = DualSTB(Config.seq_embedding_dim, 
+        encoder_k = DualSTBTimeWeighted(Config.seq_embedding_dim, 
                                             Config.trans_hidden_dim, 
                                             Config.trans_attention_head, 
                                             Config.trans_attention_layer, 
@@ -47,7 +47,7 @@ class TrajCL(nn.Module):
                         temperature = Config.moco_temperature)
 
 
-    def forward(self, trajs1_emb, trajs1_emb_p, trajs1_len, time_indices1, trajs2_emb, trajs2_emb_p, trajs2_len, time_indices2):
+    def forward(self, trajs1_emb, trajs1_emb_p, trajs1_len, time_deltas1, trajs2_emb, trajs2_emb_p, trajs2_len, time_deltas2):
         # create kwargs inputs for TransformerEncoder
         
         max_trajs1_len = trajs1_len.max().item() # in essense -- trajs1_len[0]
@@ -55,15 +55,18 @@ class TrajCL(nn.Module):
         src_padding_mask1 = torch.arange(max_trajs1_len, device = Config.device)[None, :] >= trajs1_len[:, None]
         src_padding_mask2 = torch.arange(max_trajs2_len, device = Config.device)[None, :] >= trajs2_len[:, None]
 
-        logits, targets = self.clmodel({'src': trajs1_emb, 'attn_mask': None, 'src_padding_mask': src_padding_mask1, 'src_len': trajs1_len, 'srcspatial': trajs1_emb_p},
-                {'src': trajs2_emb, 'attn_mask': None, 'src_padding_mask': src_padding_mask2, 'src_len': trajs2_len, 'srcspatial': trajs2_emb_p})
+        logits, targets = self.clmodel({'src': trajs1_emb, 'time_deltas': time_deltas1, 'attn_mask': None, 'src_padding_mask': src_padding_mask1, 'src_len': trajs1_len, 'srcspatial': trajs1_emb_p},
+                {'src': trajs2_emb, 'time_deltas': time_deltas2, 'attn_mask': None, 'src_padding_mask': src_padding_mask2, 'src_len': trajs2_len, 'srcspatial': trajs2_emb_p})
+        # logits, targets = self.clmodel({'src': trajs1_emb, 'attn_mask': None, 'src_padding_mask': src_padding_mask1, 'src_len': trajs1_len, 'srcspatial': trajs1_emb_p},
+        #         {'src': trajs2_emb, 'attn_mask': None, 'src_padding_mask': src_padding_mask2, 'src_len': trajs2_len, 'srcspatial': trajs2_emb_p})
         return logits, targets
 
 
-    def interpret(self, trajs1_emb, trajs1_emb_p, trajs1_len, time_indices1):
+    def interpret(self, trajs1_emb, trajs1_emb_p, trajs1_len, time_deltas1):
         max_trajs1_len = trajs1_len.max().item() # trajs1_len[0]
         src_padding_mask1 = torch.arange(max_trajs1_len, device = Config.device)[None, :] >= trajs1_len[:, None]
-        traj_embs = self.clmodel.encoder_q(**{'src': trajs1_emb, 'attn_mask': None, 'src_padding_mask': src_padding_mask1, 'src_len': trajs1_len, 'srcspatial': trajs1_emb_p})
+        # traj_embs = self.clmodel.encoder_q(**{'src': trajs1_emb, 'time_indices': time_indices1, 'attn_mask': None, 'src_padding_mask': src_padding_mask1, 'src_len': trajs1_len, 'srcspatial': trajs1_emb_p})
+        traj_embs = self.clmodel.encoder_q(**{'src': trajs1_emb, 'time_deltas': time_deltas1, 'attn_mask': None, 'src_padding_mask': src_padding_mask1, 'src_len': trajs1_len, 'srcspatial': trajs1_emb_p})
         return traj_embs
 
 
@@ -100,13 +103,14 @@ def collate_and_augment(batch, cellspace, embs_parent, embs_child, aug_func_list
     # 2. convert augmented trajs to the trajs based on mercator space by cells
     # 3. read cell embeddings and form batch tensors (sort, pad)
     trajs = [t['merc_seq'] for t in batch]
-    time_indices = [t['time_indices'] for t in batch]
+    time_indices = [t['timestamps'] for t in batch]
     
     trajs1, trajs2 = [], []
     time_indices1, time_indices2 = [], []
     for l,t in zip(trajs, time_indices):
         random_int = np.random.randint(0,len(aug_func_list))
         augfn1 = aug_func_list[random_int]
+        l,t = l[:Config.max_traj_len], t[:Config.max_traj_len]
         new_l, new_t = augfn1(l, t)
         # new_l = transform_traj(new_l, dx, dy)
 
@@ -120,9 +124,9 @@ def collate_and_augment(batch, cellspace, embs_parent, embs_child, aug_func_list
         time_indices2.append(new_t)
 
 
-    trajs1_cell_parent, trajs1_cell_child, trajs1_p = zip(*[merc2cell2(t, cellspace) for t in trajs1])
-    trajs2_cell_parent, trajs2_cell_child, trajs2_p = zip(*[merc2cell2(t, cellspace) for t in trajs2])
-
+    trajs1_cell_parent, trajs1_cell_child, trajs1_p, trajs1_timedelta = zip(*[merc2cell2(t, cellspace) for t in trajs1])
+    trajs2_cell_parent, trajs2_cell_child, trajs2_p, trajs2_timedelta = zip(*[merc2cell2(t, cellspace) for t in trajs2])
+    
     trajs1_emb_p = [torch.tensor(generate_spatial_features(t, cellspace)) for t in trajs1_p]
     trajs2_emb_p = [torch.tensor(generate_spatial_features(t, cellspace)) for t in trajs2_p]
 
@@ -144,11 +148,11 @@ def collate_and_augment(batch, cellspace, embs_parent, embs_child, aug_func_list
     trajs1_len = torch.tensor(list(map(len, trajs1_cell_parent)), dtype = torch.long, device = Config.device)
     trajs2_len = torch.tensor(list(map(len, trajs2_cell_parent)), dtype = torch.long, device = Config.device)
 
-    time_indices1 = pad_sequence([torch.tensor(t, dtype=torch.long) for t in time_indices1], batch_first=False, padding_value=-1).to(Config.device) # [seq_len, batch_size]
-    time_indices2 = pad_sequence([torch.tensor(t, dtype=torch.long) for t in time_indices2], batch_first=False, padding_value=-1).to(Config.device)
+    time_deltas1 = pad_sequence([torch.log(torch.tensor(t)) for t in trajs1_timedelta], batch_first=False, padding_value=0).to(Config.device) # [seq_len, batch_size]
+    time_deltas2 = pad_sequence([torch.log(torch.tensor(t)) for t in trajs2_timedelta], batch_first=False, padding_value=0).to(Config.device)
 
     # return: two padded tensors and their lengths
-    return trajs1_emb_cell.float(), trajs1_emb_p.float(), trajs1_len, time_indices1, trajs2_emb_cell.float(), trajs2_emb_p.float(), trajs2_len, time_indices2
+    return trajs1_emb_cell.float(), trajs1_emb_p.float(), trajs1_len, time_deltas1, trajs2_emb_cell.float(), trajs2_emb_p.float(), trajs2_len, time_deltas2
 
 
 def collate_for_test(batch, cellspace, embs):
@@ -175,20 +179,15 @@ def collate_for_test(batch, cellspace, embs):
 
 class TrajCLTrainer:
 
-    def __init__(self, str_aug1, str_aug2, str_aug3, str_aug4):
+    def __init__(self, aug_list):
         super(TrajCLTrainer, self).__init__()
-
-        self.aug1 = get_aug_fn(str_aug1)
-        self.aug2 = get_aug_fn(str_aug2)
-        self.aug3 = get_aug_fn(str_aug3)
-        self.aug4 = get_aug_fn(str_aug4)
-        aug_fn_list = [self.aug1, self.aug2, self.aug3, self.aug4]
+        aug_fn_list = [get_aug_fn(str_aug) for str_aug in aug_list]
         self.embs_parent = pickle.load(open(Config.dataset_embs_file_parent, 'rb')).to('cpu').detach() # tensor
         self.embs_child = pickle.load(open(Config.dataset_embs_file_child, 'rb')).to('cpu').detach() # tensor
         self.cellspace_parent = pickle.load(open(Config.dataset_cell_file_parent, 'rb'))
         self.cellspace_child = pickle.load(open(Config.dataset_cell_file_child, 'rb'))
         self.hier_cellspace = HirearchicalCellSpace(self.cellspace_parent, self.cellspace_child)
-
+        
         train_dataset =  read_spark_dataset(Config.parquet_data_dir)
         self.train_dataloader = DataLoader(train_dataset, 
                                             batch_size = Config.trajcl_batch_size, 
@@ -230,9 +229,9 @@ class TrajCLTrainer:
                 _time_batch = time.time()
                 optimizer.zero_grad()
 
-                trajs1_emb, trajs1_emb_p, trajs1_len, time_indices1, trajs2_emb, trajs2_emb_p, trajs2_len, time_indices2 = batch
+                trajs1_emb, trajs1_emb_p, trajs1_len, time_deltas1, trajs2_emb, trajs2_emb_p, trajs2_len, time_deltas2 = batch
                 # print(trajs1_emb.dtype, trajs1_emb_p.dtype, trajs1_len.dtype, trajs2_emb.dtype, trajs2_emb_p.dtype, trajs2_len.dtype )
-                model_rtn = self.model(trajs1_emb, trajs1_emb_p, trajs1_len, time_indices1, trajs2_emb, trajs2_emb_p, trajs2_len, time_indices2)
+                model_rtn = self.model(trajs1_emb, trajs1_emb_p, trajs1_len, time_deltas1, trajs2_emb, trajs2_emb_p, trajs2_len, time_deltas2)
                 loss = self.model.loss(*model_rtn)
 
                 loss.backward()
@@ -345,9 +344,7 @@ class TrajCLTrainer:
 
 
     def save_checkpoint(self):
-        torch.save({'model_state_dict': self.model.state_dict(),
-                    'aug1': self.aug1.__name__,
-                    'aug2': self.aug2.__name__},
+        torch.save({'model_state_dict': self.model.state_dict()},
                     self.checkpoint_file)
         return
     

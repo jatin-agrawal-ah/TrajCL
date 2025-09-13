@@ -21,7 +21,7 @@ class Config:
     # device = torch.device("cpu")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     root_dir = os.path.abspath(__file__)[:-10] # dont use os.getcwd()
-    checkpoint_dir = root_dir + '/exp/la_nyc_emb_add_without_time/'
+    checkpoint_dir = root_dir + '/exp/nyc_hier_time_weighted/'
 
     dataset = 'porto'
     dataset_prefix = ''
@@ -33,18 +33,18 @@ class Config:
     min_lat = 0.0
     max_lon = 0.0
     max_lat = 0.0
-    max_traj_len = 200
+    max_traj_len = 500
     min_traj_len = 20
     cell_size = 100.0
     cellspace_buffer = 500.0
     max_len_meters = 100000
 
     #===========TrajCL=============
-    trajcl_batch_size = 256
-    cell_embedding_dim = 256
-    seq_embedding_dim = 256
+    trajcl_batch_size = 128
+    cell_embedding_dim = 512
+    seq_embedding_dim = 512
     moco_proj_dim =  seq_embedding_dim // 2
-    moco_nqueue = 2048 
+    moco_nqueue = 1024
     moco_temperature = 0.05
 
     trajcl_training_epochs = 20
@@ -56,6 +56,9 @@ class Config:
     trajcl_aug2 = 'subset'
     trajcl_aug3 = "simplify"
     trajcl_aug4 = "shift"
+    trajcl_aug5 = "shift_mask"
+    trajcl_aug6 = "simplify_shift"
+    trajcl_aug_list = ['mask', 'simplify', 'shift','shift_mask', 'simplify_by_time']
     trajcl_local_mask_sidelen = cell_size * 11
     
     trans_attention_head = 4
@@ -113,12 +116,19 @@ class Config:
             cls.max_lon = -73.7004
             cls.max_lat = 40.9176 
             cls.cell_size = 250
-        elif 'generic' == cls.dataset:
-            cls.dataset_prefix = 'generic'
-            cls.min_lon = 0
-            cls.min_lat = 0
-            cls.max_lon = 1
-            cls.max_lat = 1
+        elif 'generic_v2' == cls.dataset:
+            cls.dataset_prefix = 'generic_v2'
+            cls.min_lon = 40
+            cls.min_lat = 40
+            cls.max_lon = 40.8
+            cls.max_lat = 40.8
+            cls.cell_size = 250
+        elif 'generic_v3' == cls.dataset:
+            cls.dataset_prefix = 'generic_v3'
+            cls.min_lon = 40
+            cls.min_lat = 40
+            cls.max_lon = 40.8
+            cls.max_lat = 40.8
             cls.cell_size = 250
         elif 'generic_small' == cls.dataset:
             cls.dataset_prefix = 'generic_small'
@@ -172,7 +182,7 @@ class Config:
         cls.dataset_embs_file_child = "/home/sagemaker-user/TrajCL/data/usa_small_cell_cell250_embdim256_embs.pkl"
         cls.dataset_cell_file = cls.dataset_file + '_cell' + str(int(cls.cell_size)) + '_cellspace.pkl'
         cls.dataset_embs_file = cls.dataset_file + '_cell' + str(int(cls.cell_size)) + '_embdim' + str(cls.cell_embedding_dim) + '_embs.pkl'
-        cls.parquet_data_dir = "/home/sagemaker-user/TrajCL/data/la_nyc/train"
+        cls.parquet_data_dir = "/home/sagemaker-user/TrajCL/data/nyc/with_ts"
         set_seed(cls.seed)
 
         cls.moco_proj_dim =  cls.seq_embedding_dim // 2

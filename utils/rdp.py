@@ -36,20 +36,30 @@ def rdp(points, epsilon):
     return results
 
 
+
+
 def rdp_with_time_indices(points, time_indices, epsilon):
     dmax = 0.0
     index = 0
+    delta_t_max = 0.0
     for i in range(1, len(points) - 1):
         d = point_line_distance(points[i], points[0], points[-1])
+        delta_t = int((time_indices[i+1] - time_indices[i]))/1e9/60
+        # print(delta_t)
         if d > dmax:
             index = i
             dmax = d
+        if delta_t> delta_t_max:
+            delta_t_max = delta_t
 
     if dmax >= epsilon:
         left, time_left = rdp_with_time_indices(points[:index+1], time_indices[:index+1], epsilon)
         right, time_right = rdp_with_time_indices(points[index:], time_indices[index:], epsilon)
         results = left[:-1] + right
         time_results = time_left[:-1] + time_right
+    elif delta_t_max > 60:
+        results = [x for x in points]
+        time_results = [x for x in time_indices]
     else:
         results = [points[0], points[-1]]
         time_results = [time_indices[0], time_indices[-1]]

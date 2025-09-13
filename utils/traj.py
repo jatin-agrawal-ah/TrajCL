@@ -28,20 +28,40 @@ def time_shift(time_indices=None):
     else:
         return None
 
+def simplify_by_time(src, time_indices):
+    new_src = []
+    new_time_indices = []
+    for i in range(len(src)):
+        if i == 0:
+            new_src.append(src[i])
+            new_time_indices.append(time_indices[i])
+        else:
+            if int((time_indices[i] - new_time_indices[-1]))/1e9/60 > 10:
+                new_src.append(src[i])
+                new_time_indices.append(time_indices[i])
+    new_src = np.array(new_src)
+    new_time_indices = np.array(new_time_indices)
+    return new_src, new_time_indices
+
+
 def shift(src, time_indices=None):
     if time_indices is not None:
-        time_shifted = time_shift(time_indices)
-        return [[p[0] + truncated_rand(), p[1] + truncated_rand()] for p in src], time_shifted
+        # time_shifted = time_shift(time_indices)
+        return [[p[0] + truncated_rand(), p[1] + truncated_rand()] for p in src], time_indices
     else:
         return [[p[0] + truncated_rand(), p[1] + truncated_rand()] for p in src]
-
 
 def mask(src, time_indices=None):
     l = len(src)
     arr = np.array(src)
+    # print(len(src), len(time_indices))
     if time_indices is not None:
         time_arr = np.array(time_indices)
-        mask_idx = np.random.choice(l, int(l * Config.traj_mask_ratio), replace=False)
+        mask_idx_1 = np.random.choice(l, int(l * Config.traj_mask_ratio), replace=False)
+        mask_idx = []
+        for i in mask_idx_1:
+            if i<len(time_indices)-1 and int((time_indices[i+1] - time_indices[i]))/1e9/60 < 60:
+                mask_idx.append(i)
         return np.delete(arr, mask_idx, 0).tolist(), np.delete(time_arr, mask_idx, 0).tolist()
     else:
         mask_idx = np.random.choice(l, int(l * Config.traj_mask_ratio), replace=False)
@@ -58,19 +78,56 @@ def subset(src, time_indices=None):
         return src[start_idx: end_idx], time_indices[start_idx: end_idx]
 
 
+def shift_mask(src,time_indices):
+    src, time_indices = shift(src, time_indices)
+    src, time_indices = mask(src, time_indices)
+    return src, time_indices
+
+def simplify_shift(src, time_indices):
+    src, time_indices = simplify(src, time_indices)
+    src, time_indices = shift(src, time_indices)
+
+    return src, time_indices
 def get_aug_fn(name: str):
     return {'straight': straight, 'simplify': simplify, 'shift': shift,
-            'mask': mask, 'subset': subset}.get(name, None)
+            'mask': mask, 'subset': subset, 'shift_mask': shift_mask, 'simplify_shift': simplify_shift, "simplify_by_time": simplify_by_time  }.get(name, None)
+
+def coalesce(coords,cell_ids_parent, cell_ids_child, timestamps):
+    start = 0
+    new_coords = []
+    new_cell_ids_parent = []
+    new_cell_ids_child = []
+    delta_t = []
+    for i in range(1,len(cell_ids_parent)):
+        if cell_ids_parent[i] != cell_ids_parent[start] or cell_ids_child[i] != cell_ids_child[start]:
+            new_coords.append(coords[start])
+            new_cell_ids_parent.append(cell_ids_parent[start])
+            new_cell_ids_child.append(cell_ids_child[start])
+            dt2 = timestamps[i]
+            dt1 = timestamps[start]
+            # print(dt2,dt1,int(dt2-dt1)/1e9/60)
+            delta_t.append(int((dt2 - dt1))/1e9/60+1)
+            start = i
+    new_coords.append(coords[start])
+    new_cell_ids_parent.append(cell_ids_parent[start])
+    new_cell_ids_child.append(cell_ids_child[start])
+    dt2 = timestamps[-1]
+    dt1 = timestamps[start]
+    delta_t.append(int((dt2 - dt1))/1e9/60+1)
+    return new_coords, new_cell_ids_parent, new_cell_ids_child, delta_t
 
 
-# pair-wise conversion -- structural features and spatial feasures
-def merc2cell2(src, cs):
+def merc2cell2(coords, timestamps, cs: CellSpace):
     # convert and remove consecutive duplicates
-    tgt = [ (cs.get_parent_child_cellid(*p)) for p in src]
+    cellids = [(cs.get_parent_child_cellid(x,y)) for x,y in coords]
+    cell_ids_parent, cell_ids_child = zip(*cellids)
+
+    new_coords, new_cell_ids_parent, new_cell_ids_child, delta_t = coalesce(coords, cell_ids_parent, cell_ids_child, timestamps)
     # don't execute this if you want to keep the consecutive duplicate points. 
     # tgt = [v for i, v in enumerate(tgt) if i == 0 or v[0] != tgt[i-1][0]]
-    tgt_parent, tgt_child = zip(*tgt)
-    return tgt_parent, tgt_child, src
+
+    return new_cell_ids_parent, new_cell_ids_child, new_coords, delta_t
+
 
 def generate_spatial_features(src, cs: CellSpace):
     # src = [length, 2]
