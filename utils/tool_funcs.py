@@ -26,7 +26,7 @@ def minmax_norm(v, minv, maxv):
     return (v-minv) / (maxv-minv) + 1
 
 
-def truncated_rand(mu = 0, sigma = 1, factor = 1000, bound_lo = -500, bound_hi = 500):
+def truncated_rand(mu = 0, sigma = 0.5, factor = 200, bound_lo = -200, bound_hi = 200):
     # using the defaults parameters, the success rate of one-pass random number generation is ~96%
     # gauss visualization: https://www.desmos.com/calculator/jxzs8fz9qr?lang=zh-CN
     while True:

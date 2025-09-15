@@ -21,8 +21,9 @@ class Config:
     # device = torch.device("cpu")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     root_dir = os.path.abspath(__file__)[:-10] # dont use os.getcwd()
-    checkpoint_dir = root_dir + '/exp/nyc_hier_time_weighted/'
-
+    checkpoint_dir = root_dir + '/exp/nyc_hier_time_weighted_v2/'
+    save_steps = 10000
+    
     dataset = 'porto'
     dataset_prefix = ''
     dataset_file = ''
@@ -40,9 +41,9 @@ class Config:
     max_len_meters = 100000
 
     #===========TrajCL=============
-    trajcl_batch_size = 128
-    cell_embedding_dim = 512
-    seq_embedding_dim = 512
+    trajcl_batch_size = 256
+    cell_embedding_dim = 256
+    seq_embedding_dim = 256
     moco_proj_dim =  seq_embedding_dim // 2
     moco_nqueue = 1024
     moco_temperature = 0.05

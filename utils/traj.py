@@ -144,17 +144,19 @@ def generate_spatial_features(src, cs: CellSpace):
                         + math.atan2(src[i+1][0] - src[i][0],  src[i+1][1] - src[i][1])
         radian = 1 - abs(radian) / math.pi
 
-        x = (src[i][0] - cs.x_min) / (cs.x_max - cs.x_min)
-        y = (src[i][1] - cs.y_min)/ (cs.y_max - cs.y_min)
+        x = -math.log((src[i][0] - cs.x_min) / (cs.x_max - cs.x_min)+1e-5)
+        y = -math.log((src[i][1] - cs.y_min)/ (cs.y_max - cs.y_min)+1e-5)
         tgt.append( [x, y, dist, radian] )
 
-    x = (src[0][0] - cs.x_min) / (cs.x_max - cs.x_min)
-    y = (src[0][1] - cs.y_min)/ (cs.y_max - cs.y_min)
+    x = -math.log((src[0][0] - cs.x_min) / (cs.x_max - cs.x_min)+1e-5)
+    y = -math.log((src[0][1] - cs.y_min)/ (cs.y_max - cs.y_min)+1e-5)
     tgt.insert(0, [x, y, 0.0, 0.0] )
-    
-    x = (src[-1][0] - cs.x_min) / (cs.x_max - cs.x_min)
-    y = (src[-1][1] - cs.y_min)/ (cs.y_max - cs.y_min)
+
+    x = -math.log((src[-1][0] - cs.x_min) / (cs.x_max - cs.x_min)+1e-5)
+    y = -math.log((src[-1][1] - cs.y_min)/ (cs.y_max - cs.y_min)+1e-5)
     tgt.append( [x, y, 0.0, 0.0] )
+    if len(src)==1:
+        return [tgt[0]]
     # tgt = [length, 4]
     return tgt
 

@@ -35,7 +35,7 @@ class TrajDatasetSpark(IterableDataset):
     def __init__(self, data_dir):
         # data: DataFrame
         self.files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith(".parquet")]
-        self.files = random.sample(self.files, len(self.files))
+        # self.files = random.sample(self.files, len(self.files))
         print("Read spark files")
 
     def __iter__(self):

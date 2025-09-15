@@ -124,8 +124,8 @@ def collate_and_augment(batch, cellspace, embs_parent, embs_child, aug_func_list
         time_indices2.append(new_t)
 
 
-    trajs1_cell_parent, trajs1_cell_child, trajs1_p, trajs1_timedelta = zip(*[merc2cell2(t, cellspace) for t in trajs1])
-    trajs2_cell_parent, trajs2_cell_child, trajs2_p, trajs2_timedelta = zip(*[merc2cell2(t, cellspace) for t in trajs2])
+    trajs1_cell_parent, trajs1_cell_child, trajs1_p, trajs1_timedelta = zip(*[merc2cell2(l,t, cellspace) for l,t in zip(trajs1, time_indices1)])
+    trajs2_cell_parent, trajs2_cell_child, trajs2_p, trajs2_timedelta = zip(*[merc2cell2(l,t, cellspace) for l,t in zip(trajs2, time_indices2)])
     
     trajs1_emb_p = [torch.tensor(generate_spatial_features(t, cellspace)) for t in trajs1_p]
     trajs2_emb_p = [torch.tensor(generate_spatial_features(t, cellspace)) for t in trajs2_p]
@@ -199,7 +199,8 @@ class TrajCLTrainer:
         self.model = TrajCL().to(Config.device)
         if os.path.exists(Config.checkpoint_dir)==False:
             os.makedirs(Config.checkpoint_dir)
-        self.checkpoint_file = '{}/{}_TrajCL_best{}.pt'.format(Config.checkpoint_dir, Config.dataset_prefix, Config.dumpfile_uniqueid)
+        self.checkpoint_dir = Config.checkpoint_dir
+        # self.checkpoint_file = '{}/{}_TrajCL_best{}.pt'.format(Config.checkpoint_dir, Config.dataset_prefix, Config.dumpfile_uniqueid)
 
 
     def train(self):
@@ -244,6 +245,8 @@ class TrajCLTrainer:
                     logging.debug("[Training] ep-batch={}-{}, loss={:.3f}, @={:.3f}, gpu={}, ram={}" \
                             .format(i_ep, i_batch, loss.item(), time.time() - _time_batch_start,
                                     tool_funcs.GPUInfo.mem(), tool_funcs.RAMInfo.mem()))
+                if i_batch % Config.save_steps == 0 and i_batch!= 0:
+                    self.save_checkpoint("ep{}_batch{}".format(i_ep, i_batch))
 
             scheduler.step() # decay before optimizer when pytorch < 1.1
 
@@ -260,7 +263,7 @@ class TrajCLTrainer:
                 best_epoch = i_ep
                 best_loss_train = loss_ep_avg
                 bad_counter = 0
-                self.save_checkpoint()
+                self.save_checkpoint("ep{}_final".format(i_ep))
             else:
                 bad_counter += 1
 
@@ -343,9 +346,10 @@ class TrajCLTrainer:
         return
 
 
-    def save_checkpoint(self):
+    def save_checkpoint(self, checkpoint_name):
+        checkpoint_file = os.path.join(self.checkpoint_dir, checkpoint_name)
         torch.save({'model_state_dict': self.model.state_dict()},
-                    self.checkpoint_file)
+                    checkpoint_file)
         return
     
 
