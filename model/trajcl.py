@@ -148,8 +148,8 @@ def collate_and_augment(batch, cellspace, embs_parent, embs_child, aug_func_list
     trajs1_len = torch.tensor(list(map(len, trajs1_cell_parent)), dtype = torch.long, device = Config.device)
     trajs2_len = torch.tensor(list(map(len, trajs2_cell_parent)), dtype = torch.long, device = Config.device)
 
-    time_deltas1 = pad_sequence([torch.log(torch.tensor(t)) for t in trajs1_timedelta], batch_first=False, padding_value=0).to(Config.device) # [seq_len, batch_size]
-    time_deltas2 = pad_sequence([torch.log(torch.tensor(t)) for t in trajs2_timedelta], batch_first=False, padding_value=0).to(Config.device)
+    time_deltas1 = pad_sequence([torch.tensor(t) for t in trajs1_timedelta], batch_first=False, padding_value=0).to(Config.device) # [seq_len, batch_size]
+    time_deltas2 = pad_sequence([torch.tensor(t) for t in trajs2_timedelta], batch_first=False, padding_value=0).to(Config.device)
 
     # return: two padded tensors and their lengths
     return trajs1_emb_cell.float(), trajs1_emb_p.float(), trajs1_len, time_deltas1, trajs2_emb_cell.float(), trajs2_emb_p.float(), trajs2_len, time_deltas2

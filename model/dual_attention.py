@@ -139,7 +139,7 @@ class DualSTBTimeWeighted(nn.Module):
         else:
             attn_spatial = None
 
-        src = self.pos_encoder(src)
+        # src = self.pos_encoder(src)
         rtn = self.structural_attn(src, attn_spatial, src_padding_mask)
 
         mask = 1 - src_padding_mask.T.unsqueeze(-1).expand(rtn.shape).float()
