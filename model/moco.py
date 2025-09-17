@@ -12,13 +12,13 @@ class MoCo(nn.Module):
     https://arxiv.org/abs/1911.05722
     """
     def __init__(self, encoder_q, encoder_k, nemb, nout,
-                queue_size, mmt = 0.999, temperature = 0.07):
+                queue_size, mmt = 0.999, temperature = 0.07, neg_sampling = False):
         super(MoCo, self).__init__()
 
         self.queue_size = queue_size
         self.mmt = mmt
         self.temperature = temperature
-
+        self.neg_sampling = neg_sampling
         self.criterion = nn.CrossEntropyLoss()
 
         # create the encoders
@@ -94,7 +94,7 @@ class MoCo(nn.Module):
         # negative logits: NxK
         l_neg = torch.einsum('nc,ck->nk', [q, self.queue.clone().detach()])
 
-        if kwargs_custom_neg is not None:
+        if kwargs_custom_neg is not None and self.neg_sampling:
             # Expect custom_negatives to be shape [N, C]
             custom_negatives = self.mlp_k(self.encoder_k(**kwargs_custom_neg))
             custom_negatives = nn.functional.normalize(custom_negatives, dim=1)  # Normalize

@@ -207,7 +207,7 @@ class SpatialMSM(nn.Module):
         # src_padding_mask: [batch_size, seq_len]
         # src_len: [batch_size]
 
-        src = self.pos_encoder(src)
+        # src = self.pos_encoder(src)
         rtn, attn = self.trans_encoder(src, attn_mask, src_padding_mask)
 
         # average pooling

@@ -153,13 +153,14 @@ def coalesce(coords,cell_ids_parent, cell_ids_child, timestamps):
 
 def merc2cell2(coords, timestamps, cs: CellSpace):
     # convert and remove consecutive duplicates
+    
     cellids = [(cs.get_parent_child_cellid(x,y)) for x,y in coords]
     cell_ids_parent, cell_ids_child = zip(*cellids)
 
     new_coords, new_cell_ids_parent, new_cell_ids_child, delta_t = coalesce(coords, cell_ids_parent, cell_ids_child, timestamps)
     # don't execute this if you want to keep the consecutive duplicate points. 
     # tgt = [v for i, v in enumerate(tgt) if i == 0 or v[0] != tgt[i-1][0]]
-
+    # print(len(coords), len(new_cell_ids_child))
     return new_cell_ids_parent, new_cell_ids_child, new_coords, delta_t
 
 
@@ -178,16 +179,16 @@ def generate_spatial_features(src, cs: CellSpace):
                         + math.atan2(src[i+1][0] - src[i][0],  src[i+1][1] - src[i][1])
         radian = 1 - abs(radian) / math.pi
 
-        x = -math.log((src[i][0] - cs.x_min) / (cs.x_max - cs.x_min)+1e-5)
-        y = -math.log((src[i][1] - cs.y_min)/ (cs.y_max - cs.y_min)+1e-5)
+        x = -math.log((src[i][0] - cs.x_min+1e-5) / (cs.x_max - cs.x_min)+1e-5)
+        y = -math.log((src[i][1] - cs.y_min+1e-5)/ (cs.y_max - cs.y_min)+1e-5)
         tgt.append( [x, y, dist, radian] )
 
-    x = -math.log((src[0][0] - cs.x_min) / (cs.x_max - cs.x_min)+1e-5)
-    y = -math.log((src[0][1] - cs.y_min)/ (cs.y_max - cs.y_min)+1e-5)
+    x = -math.log((src[0][0] - cs.x_min+1e-5) / (cs.x_max - cs.x_min)+1e-5)
+    y = -math.log((src[0][1] - cs.y_min+1e-5)/ (cs.y_max - cs.y_min)+1e-5)
     tgt.insert(0, [x, y, 0.0, 0.0] )
 
-    x = -math.log((src[-1][0] - cs.x_min) / (cs.x_max - cs.x_min)+1e-5)
-    y = -math.log((src[-1][1] - cs.y_min)/ (cs.y_max - cs.y_min)+1e-5)
+    x = -math.log((src[-1][0] - cs.x_min+1e-5) / (cs.x_max - cs.x_min)+1e-5)
+    y = -math.log((src[-1][1] - cs.y_min+1e-5)/ (cs.y_max - cs.y_min)+1e-5)
     tgt.append( [x, y, 0.0, 0.0] )
     if len(src)==1:
         return [tgt[0]]

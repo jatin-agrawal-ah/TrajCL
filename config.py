@@ -21,7 +21,7 @@ class Config:
     # device = torch.device("cpu")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     root_dir = os.path.abspath(__file__)[:-10] # dont use os.getcwd()
-    checkpoint_dir = root_dir + '/exp/nyc_hier_time_weighted_v2/'
+    checkpoint_dir = root_dir + '/exp/usa_only_pos_sampling/'
     save_steps = 10000
     
     dataset = 'porto'
@@ -41,7 +41,8 @@ class Config:
     max_len_meters = 100000
 
     #===========TrajCL=============
-    trajcl_batch_size = 256
+    neg_sampling = False
+    trajcl_batch_size =256
     cell_embedding_dim = 256
     seq_embedding_dim = 256
     moco_proj_dim =  seq_embedding_dim // 2
@@ -60,7 +61,7 @@ class Config:
     trajcl_aug5 = "shift_mask"
     trajcl_aug6 = "simplify_shift"
     trajcl_pos_aug_list = [ 'mask', 'simplify', 'shift','shift_mask', 'simplify_by_time']
-    trajcl_neg_aug_list = [ 'large_time_shift', 'translate']
+    trajcl_neg_aug_list = [ 'jumble', 'translate']
     trajcl_local_mask_sidelen = cell_size * 11
     
     trans_attention_head = 4
@@ -186,7 +187,8 @@ class Config:
         cls.dataset_embs_file_child = "/home/sagemaker-user/TrajCL/data/usa_small_cell_cell250_embdim256_embs.pkl"
         cls.dataset_cell_file = cls.dataset_file + '_cell' + str(int(cls.cell_size)) + '_cellspace.pkl'
         cls.dataset_embs_file = cls.dataset_file + '_cell' + str(int(cls.cell_size)) + '_embdim' + str(cls.cell_embedding_dim) + '_embs.pkl'
-        cls.parquet_data_dir = "/home/sagemaker-user/TrajCL/data/nyc/with_ts"
+        cls.parquet_data_dir = "/mnt/sagemaker-nvme/data/usa/v1"
+        cls.parquet_data_dir_val = "/mnt/sagemaker-nvme/data/usa/val"
         set_seed(cls.seed)
 
         cls.moco_proj_dim =  cls.seq_embedding_dim // 2
