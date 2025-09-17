@@ -46,19 +46,20 @@ class TrajCL(nn.Module):
                         Config.moco_nqueue,
                         temperature = Config.moco_temperature)
 
-
-    def forward(self, trajs1_emb, trajs1_emb_p, trajs1_len, time_deltas1, trajs2_emb, trajs2_emb_p, trajs2_len, time_deltas2):
+    def forward(self, trajs1_emb, trajs1_emb_p, trajs1_len, time_deltas1, trajs2_emb, trajs2_emb_p, trajs2_len, time_deltas2, neg_trajs_emb=None, neg_trajs_emb_p=None, neg_trajs_len=None, neg_time_deltas=None):
         # create kwargs inputs for TransformerEncoder
         
         max_trajs1_len = trajs1_len.max().item() # in essense -- trajs1_len[0]
         max_trajs2_len = trajs2_len.max().item() # in essense -- trajs2_len[0]
+        max_neg_trajs_len = neg_trajs_len.max().item() if neg_trajs_len is not None else 0
+
         src_padding_mask1 = torch.arange(max_trajs1_len, device = Config.device)[None, :] >= trajs1_len[:, None]
         src_padding_mask2 = torch.arange(max_trajs2_len, device = Config.device)[None, :] >= trajs2_len[:, None]
+        src_padding_mask_neg = torch.arange(max_neg_trajs_len, device = Config.device)[None, :] >= neg_trajs_len[:, None] if neg_trajs_len is not None else None
 
         logits, targets = self.clmodel({'src': trajs1_emb, 'time_deltas': time_deltas1, 'attn_mask': None, 'src_padding_mask': src_padding_mask1, 'src_len': trajs1_len, 'srcspatial': trajs1_emb_p},
-                {'src': trajs2_emb, 'time_deltas': time_deltas2, 'attn_mask': None, 'src_padding_mask': src_padding_mask2, 'src_len': trajs2_len, 'srcspatial': trajs2_emb_p})
-        # logits, targets = self.clmodel({'src': trajs1_emb, 'attn_mask': None, 'src_padding_mask': src_padding_mask1, 'src_len': trajs1_len, 'srcspatial': trajs1_emb_p},
-        #         {'src': trajs2_emb, 'attn_mask': None, 'src_padding_mask': src_padding_mask2, 'src_len': trajs2_len, 'srcspatial': trajs2_emb_p})
+                {'src': trajs2_emb, 'time_deltas': time_deltas2, 'attn_mask': None, 'src_padding_mask': src_padding_mask2, 'src_len': trajs2_len, 'srcspatial': trajs2_emb_p}, 
+                {'src': neg_trajs_emb, 'time_deltas': neg_time_deltas, 'attn_mask': None, 'src_padding_mask': src_padding_mask_neg, 'src_len': neg_trajs_len, 'srcspatial': neg_trajs_emb_p} if neg_trajs_emb is not None else None)
         return logits, targets
 
 
@@ -79,24 +80,8 @@ class TrajCL(nn.Module):
         checkpoint = torch.load(checkpoint_file)
         self.load_state_dict(checkpoint['model_state_dict'])
         return self
-
-# def get_min_max_xy(traj):
-#     min_x = min([p[0] for p in traj])
-#     max_x = max([p[0] for p in traj])
-#     min_y = min([p[1] for p in traj])
-#     max_y = max([p[1] for p in traj])
-#     return min_x, max_x, min_y, max_y
-
-# def calculate_dx_dy(k, target_min_x, target_min_y, min_x, max_x, min_y, max_y):
-#     dx = target_min_x+ (k - max_x - min_x) / 2
-#     dy = target_min_y+ (k - max_y - min_y) / 2
-#     return dx, dy
-
-# def transform_traj(traj, dx, dy):
-#     new_traj = [[p[0] + dx, p[1] + dy] for p in traj]
-#     return new_traj
-
-def collate_and_augment(batch, cellspace, embs_parent, embs_child, aug_func_list):
+    
+def collate_and_augment(batch, cellspace, embs_parent, embs_child, pos_aug_list, neg_aug_list):
     # trajs: list of [[lon, lat], [,], ...]
 
     # 1. augment the input traj in order to form 2 augmented traj views
@@ -108,51 +93,66 @@ def collate_and_augment(batch, cellspace, embs_parent, embs_child, aug_func_list
     trajs1, trajs2 = [], []
     time_indices1, time_indices2 = [], []
     for l,t in zip(trajs, time_indices):
-        random_int = np.random.randint(0,len(aug_func_list))
-        augfn1 = aug_func_list[random_int]
+        random_int = np.random.randint(0,len(pos_aug_list))
+        augfn1 = pos_aug_list[random_int]
         l,t = l[:Config.max_traj_len], t[:Config.max_traj_len]
         new_l, new_t = augfn1(l, t)
         # new_l = transform_traj(new_l, dx, dy)
 
         trajs1.append(new_l)
         time_indices1.append(new_t)
-        random_int = np.random.randint(0,len(aug_func_list))
-        augfn2 = aug_func_list[random_int]
+        random_int = np.random.randint(0,len(pos_aug_list))
+        augfn2 = pos_aug_list[random_int]
         new_l, new_t = augfn2(l, t)
         # new_l = transform_traj(new_l, dx, dy)
         trajs2.append(new_l)
         time_indices2.append(new_t)
-
+    
+    neg_traj, neg_time_indices = [], []
+    for l,t in zip(trajs, time_indices):
+        neg_aug_fn_1 = np.random.randint(0, len(neg_aug_list))  # randomly choose one of the two augmentation pairs
+        new_l, new_t = neg_aug_list[neg_aug_fn_1](l, t)
+        neg_traj.append(new_l)
+        neg_time_indices.append(new_t)
 
     trajs1_cell_parent, trajs1_cell_child, trajs1_p, trajs1_timedelta = zip(*[merc2cell2(l,t, cellspace) for l,t in zip(trajs1, time_indices1)])
     trajs2_cell_parent, trajs2_cell_child, trajs2_p, trajs2_timedelta = zip(*[merc2cell2(l,t, cellspace) for l,t in zip(trajs2, time_indices2)])
+    neg_trajs_cell_parent, neg_trajs_cell_child, neg_trajs_p, neg_trajs_timedelta = zip(*[merc2cell2(l,t, cellspace) for l,t in zip(neg_traj, neg_time_indices)])
     
     trajs1_emb_p = [torch.tensor(generate_spatial_features(t, cellspace)) for t in trajs1_p]
     trajs2_emb_p = [torch.tensor(generate_spatial_features(t, cellspace)) for t in trajs2_p]
+    neg_trajs_emb_p = [torch.tensor(generate_spatial_features(t, cellspace)) for t in neg_trajs_p]
 
     trajs1_emb_p = pad_sequence(trajs1_emb_p, batch_first = False).to(Config.device)
     trajs2_emb_p = pad_sequence(trajs2_emb_p, batch_first = False).to(Config.device)
+    neg_trajs_emb_p = pad_sequence(neg_trajs_emb_p, batch_first = False).to(Config.device)
 
     trajs1_emb_cell_parent = [embs_parent[list(t)] for t in trajs1_cell_parent]
     trajs2_emb_cell_parent = [embs_parent[list(t)] for t in trajs2_cell_parent]
+    neg_trajs_emb_cell_parent = [embs_parent[list(t)] for t in neg_trajs_cell_parent]
 
     trajs1_emb_cell_child = [embs_child[list(t)] for t in trajs1_cell_child]
     trajs2_emb_cell_child = [embs_child[list(t)] for t in trajs2_cell_child]
+    neg_trajs_emb_cell_child = [embs_child[list(t)] for t in neg_trajs_cell_child]
 
     trajs1_emb_cell = [a + b for a, b in zip(trajs1_emb_cell_parent, trajs1_emb_cell_child)] # add parent and child embeddings.
     trajs2_emb_cell = [a + b for a, b in zip(trajs2_emb_cell_parent, trajs2_emb_cell_child)]
+    neg_trajs_emb_cell = [a + b for a, b in zip(neg_trajs_emb_cell_parent, neg_trajs_emb_cell_child)]
 
     trajs1_emb_cell = pad_sequence(trajs1_emb_cell, batch_first = False).to(Config.device) # [seq_len, batch_size, emb_dim]
     trajs2_emb_cell = pad_sequence(trajs2_emb_cell, batch_first = False).to(Config.device) # [seq_len, batch_size, emb_dim]
+    neg_trajs_emb_cell = pad_sequence(neg_trajs_emb_cell, batch_first = False).to(Config.device) # [seq_len, batch_size, emb_dim]
 
     trajs1_len = torch.tensor(list(map(len, trajs1_cell_parent)), dtype = torch.long, device = Config.device)
     trajs2_len = torch.tensor(list(map(len, trajs2_cell_parent)), dtype = torch.long, device = Config.device)
+    neg_trajs_len = torch.tensor(list(map(len, neg_trajs_cell_parent)), dtype = torch.long, device = Config.device)
 
     time_deltas1 = pad_sequence([torch.tensor(t) for t in trajs1_timedelta], batch_first=False, padding_value=0).to(Config.device) # [seq_len, batch_size]
     time_deltas2 = pad_sequence([torch.tensor(t) for t in trajs2_timedelta], batch_first=False, padding_value=0).to(Config.device)
+    neg_time_deltas = pad_sequence([torch.tensor(t) for t in neg_trajs_timedelta], batch_first=False, padding_value=0).to(Config.device) # [seq_len, batch_size]
 
     # return: two padded tensors and their lengths
-    return trajs1_emb_cell.float(), trajs1_emb_p.float(), trajs1_len, time_deltas1, trajs2_emb_cell.float(), trajs2_emb_p.float(), trajs2_len, time_deltas2
+    return trajs1_emb_cell.float(), trajs1_emb_p.float(), trajs1_len, time_deltas1, trajs2_emb_cell.float(), trajs2_emb_p.float(), trajs2_len, time_deltas2, neg_trajs_emb_cell.float(), neg_trajs_emb_p.float(), neg_trajs_len, neg_time_deltas
 
 
 def collate_for_test(batch, cellspace, embs):
@@ -163,7 +163,7 @@ def collate_for_test(batch, cellspace, embs):
     time_indices = [t['time_indices'] for t in batch]
 
     trajs2_cell, trajs2_p = zip(*[merc2cell2(t, cellspace) for t in trajs])
-    trajs2_emb_p = [torch.tensor(generate_spatial_features(t, cellspace)) for t in trajs2_p]
+    trajs2_emb_p = [torch.tensor(generate_spatio_temporal_features(l, t, cellspace)) for l, t in zip(time_indices, trajs2_p)]
     trajs2_emb_p = pad_sequence(trajs2_emb_p, batch_first = False).to(Config.device)
 
     trajs2_emb_cell = [embs[list(t)] for t in trajs2_cell]
@@ -179,9 +179,12 @@ def collate_for_test(batch, cellspace, embs):
 
 class TrajCLTrainer:
 
-    def __init__(self, aug_list):
+    def __init__(self, pos_aug_str_list, neg_aug_str_list):
         super(TrajCLTrainer, self).__init__()
-        aug_fn_list = [get_aug_fn(str_aug) for str_aug in aug_list]
+        self.pos_aug_str_list = pos_aug_str_list
+        self.neg_aug_str_list = neg_aug_str_list
+        pos_aug_list = [get_aug_fn(name) for name in pos_aug_str_list]
+        neg_aug_list = [get_aug_fn(name) for name in neg_aug_str_list]
         self.embs_parent = pickle.load(open(Config.dataset_embs_file_parent, 'rb')).to('cpu').detach() # tensor
         self.embs_child = pickle.load(open(Config.dataset_embs_file_child, 'rb')).to('cpu').detach() # tensor
         self.cellspace_parent = pickle.load(open(Config.dataset_cell_file_parent, 'rb'))
@@ -194,7 +197,7 @@ class TrajCLTrainer:
                                             shuffle = False, 
                                             num_workers = 0, 
                                             drop_last = True, 
-                                            collate_fn = partial(collate_and_augment, cellspace = self.hier_cellspace, embs_parent = self.embs_parent, embs_child = self.embs_child, aug_func_list = aug_fn_list) )
+                                            collate_fn = partial(collate_and_augment, cellspace = self.hier_cellspace, embs_parent = self.embs_parent, embs_child = self.embs_child, pos_aug_list = pos_aug_list, neg_aug_list = neg_aug_list) )
 
         self.model = TrajCL().to(Config.device)
         if os.path.exists(Config.checkpoint_dir)==False:
@@ -230,9 +233,9 @@ class TrajCLTrainer:
                 _time_batch = time.time()
                 optimizer.zero_grad()
 
-                trajs1_emb, trajs1_emb_p, trajs1_len, time_deltas1, trajs2_emb, trajs2_emb_p, trajs2_len, time_deltas2 = batch
+                trajs1_emb, trajs1_emb_p, trajs1_len, time_deltas1, trajs2_emb, trajs2_emb_p, trajs2_len, time_deltas2, neg_trajs_emb, neg_trajs_emb_p, neg_trajs_len, neg_time_deltas = batch
                 # print(trajs1_emb.dtype, trajs1_emb_p.dtype, trajs1_len.dtype, trajs2_emb.dtype, trajs2_emb_p.dtype, trajs2_len.dtype )
-                model_rtn = self.model(trajs1_emb, trajs1_emb_p, trajs1_len, time_deltas1, trajs2_emb, trajs2_emb_p, trajs2_len, time_deltas2)
+                model_rtn = self.model(trajs1_emb, trajs1_emb_p, trajs1_len, time_deltas1, trajs2_emb, trajs2_emb_p, trajs2_len, time_deltas2, neg_trajs_emb, neg_trajs_emb_p, neg_trajs_len, neg_time_deltas)
                 loss = self.model.loss(*model_rtn)
 
                 loss.backward()

@@ -76,7 +76,7 @@ class MoCo(nn.Module):
         self.queue_ptr[0] = ptr
 
  
-    def forward(self, kwargs_q, kwargs_k):
+    def forward(self, kwargs_q, kwargs_k, kwargs_custom_neg=None):
 
         # compute query features
         q = self.mlp_q(self.encoder_q(**kwargs_q))  # queries: NxC
@@ -94,7 +94,16 @@ class MoCo(nn.Module):
         # negative logits: NxK
         l_neg = torch.einsum('nc,ck->nk', [q, self.queue.clone().detach()])
 
-        # logits: Nx(1+K)
+        if kwargs_custom_neg is not None:
+            # Expect custom_negatives to be shape [N, C]
+            custom_negatives = self.mlp_k(self.encoder_k(**kwargs_custom_neg))
+            custom_negatives = nn.functional.normalize(custom_negatives, dim=1)  # Normalize
+            l_custom = torch.einsum('nc,nc->n', [q, custom_negatives]).unsqueeze(-1)
+            
+            # Concatenate custom negatives to existing negatives
+            l_neg = torch.cat([l_neg, l_custom], dim=1)  # [N, K + M]
+
+        # logits: Nx(1+K+1)
         logits = torch.cat([l_pos, l_neg], dim=1)
 
         # apply temperature

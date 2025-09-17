@@ -59,7 +59,8 @@ class Config:
     trajcl_aug4 = "shift"
     trajcl_aug5 = "shift_mask"
     trajcl_aug6 = "simplify_shift"
-    trajcl_aug_list = ['mask', 'simplify', 'shift','shift_mask', 'simplify_by_time']
+    trajcl_pos_aug_list = [ 'mask', 'simplify', 'shift','shift_mask', 'simplify_by_time']
+    trajcl_neg_aug_list = [ 'large_time_shift', 'translate']
     trajcl_local_mask_sidelen = cell_size * 11
     
     trans_attention_head = 4
@@ -69,13 +70,15 @@ class Config:
     trans_hidden_dim = 2048
 
     traj_time_shift_min = 0
-    traj_time_shift_max = 10
+    traj_time_shift_max = 20
     traj_max_time = 143
     traj_simp_dist = 250
     traj_shift_dist = 500
     traj_mask_ratio = 0.5
     traj_add_ratio = 0.3
     traj_subset_ratio = 0.7 # preserved ratio
+    traj_large_time_shift_min = 70
+    traj_large_time_shift_max = 90
 
     test_exp1_lcss_edr_epsilon = 0.25 # normalized
 

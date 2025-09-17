@@ -77,6 +77,40 @@ def subset(src, time_indices=None):
     else:
         return src[start_idx: end_idx], time_indices[start_idx: end_idx]
 
+# def reverse(src, time_indices=None):
+#     if time_indices is not None:
+#         return src[::-1], time_indices
+#     else:
+#         return src[::-1]
+
+def jumble(src, time_indices=None):
+    l = len(src)
+    arr = np.array(src)
+    jumble_idx = np.random.choice(l, l, replace=False)
+    return arr[jumble_idx].tolist() , time_indices
+
+
+def large_time_shift(src, time_indices=None):
+    time_shift_val = random.randint(Config.traj_large_time_shift_min, Config.traj_large_time_shift_max)
+    new_time_indices = [(t + time_shift_val)% (Config.traj_max_time+1) for t in time_indices]
+    # sort src and new_time_indices by new_time_indices
+    sorted_indices = sorted(range(len(new_time_indices)), key=lambda k: new_time_indices[k])
+    sorted_src = [src[i] for i in sorted_indices]
+    sorted_time_indices = [new_time_indices[i] for i in sorted_indices]
+    return sorted_src, sorted_time_indices
+
+
+def translate(traj, time_indices):
+    theta = random.uniform(0, 2 * np.pi)
+
+    # Step 2: Define shift amount in meters
+    distance =random.randint(1000,3000)  # shift trajectory by 500 meters
+    dx = distance * np.cos(theta)
+    dy = distance * np.sin(theta)
+
+    # Step 3: Apply shift to all coordinates
+    shifted_coords = [(x + dx, y + dy) for x, y in traj]
+    return shifted_coords, time_indices
 
 def shift_mask(src,time_indices):
     src, time_indices = shift(src, time_indices)
@@ -90,7 +124,7 @@ def simplify_shift(src, time_indices):
     return src, time_indices
 def get_aug_fn(name: str):
     return {'straight': straight, 'simplify': simplify, 'shift': shift,
-            'mask': mask, 'subset': subset, 'shift_mask': shift_mask, 'simplify_shift': simplify_shift, "simplify_by_time": simplify_by_time  }.get(name, None)
+            'mask': mask, 'subset': subset, 'shift_mask': shift_mask, 'simplify_shift': simplify_shift, "simplify_by_time": simplify_by_time, 'jumble': jumble, 'large_time_shift': large_time_shift, 'translate': translate  }.get(name, None)
 
 def coalesce(coords,cell_ids_parent, cell_ids_child, timestamps):
     start = 0
@@ -158,6 +192,39 @@ def generate_spatial_features(src, cs: CellSpace):
     if len(src)==1:
         return [tgt[0]]
     # tgt = [length, 4]
+    return tgt
+
+def generate_spatio_temporal_features(src, time_indices, cs: CellSpace):
+    # src = [length, 2]
+    tgt = []
+    lens = []
+    for p1, p2 in tool_funcs.pairwise(src):
+        lens.append(tool_funcs.l2_distance(p1[0], p1[1], p2[0], p2[1]))
+
+    for i in range(1, len(src) - 1):
+        dist = (lens[i-1] + lens[i]) / 2
+        velocity_l = lens[i-1] / ((time_indices[i] - time_indices[i-1])*600) if (time_indices[i] - time_indices[i-1]) > 0 else 0
+        velocity_r = lens[i] / ((time_indices[i+1] - time_indices[i])*600) if (time_indices[i+1] - time_indices[i]) > 0 else 0
+        dist = dist / (Config.trajcl_local_mask_sidelen / 1.414) # float_ceil(sqrt(2))
+
+        radian = math.pi - math.atan2(src[i-1][0] - src[i][0],  src[i-1][1] - src[i][1]) \
+                        + math.atan2(src[i+1][0] - src[i][0],  src[i+1][1] - src[i][1])
+        radian = 1 - abs(radian) / math.pi
+
+        x = (src[i][0] - cs.x_min) / (cs.x_max - cs.x_min)
+        y = (src[i][1] - cs.y_min)/ (cs.y_max - cs.y_min)
+        tgt.append( [x, y, dist, radian, velocity_l, velocity_r] )
+
+    x = (src[0][0] - cs.x_min) / (cs.x_max - cs.x_min)
+    y = (src[0][1] - cs.y_min)/ (cs.y_max - cs.y_min)
+    velocity_r = lens[0]/ ((time_indices[1] - time_indices[0])*600) if (time_indices[1] - time_indices[0]) > 0 else 0
+    tgt.insert(0, [x, y, 0.0, 0.0, 0.0, velocity_r] )
+
+    x = (src[-1][0] - cs.x_min) / (cs.x_max - cs.x_min)
+    y = (src[-1][1] - cs.y_min)/ (cs.y_max - cs.y_min)
+    velocity_l = lens[-1]/ ((time_indices[-1] - time_indices[-2])*600) if (time_indices[-1] - time_indices[-2]) > 0 else 0
+    tgt.append( [x, y, 0.0, 0.0, velocity_l, 0.0] )
+    # tgt = [length, 5]
     return tgt
 
 
