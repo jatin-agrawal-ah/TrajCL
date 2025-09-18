@@ -21,6 +21,7 @@ import warnings
 import os
 from tqdm import tqdm
 import numpy as np
+import torch.amp
 warnings.filterwarnings("ignore", message=".*Support for mismatched src_key_padding_mask and mask is deprecated.*")
 
 
@@ -260,6 +261,8 @@ class TrajCLTrainer:
         
         optimizer = torch.optim.Adam(self.model.parameters(), lr = Config.trajcl_training_lr, weight_decay = 0.0001)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size = Config.trajcl_training_lr_degrade_step, gamma = Config.trajcl_training_lr_degrade_gamma)
+        if Config.fp_16:
+            scaler = torch.amp.GradScaler()
 
         best_loss_train = 100000
         best_epoch = 0
@@ -279,13 +282,22 @@ class TrajCLTrainer:
                 _time_batch = time.time()
                 optimizer.zero_grad()
 
-                trajs1_emb, trajs1_emb_p, trajs1_len, time_deltas1, trajs2_emb, trajs2_emb_p, trajs2_len, time_deltas2, neg_trajs_emb, neg_trajs_emb_p, neg_trajs_len, neg_time_deltas = batch
-                # print(trajs1_emb.dtype, trajs1_emb_p.dtype, trajs1_len.dtype, trajs2_emb.dtype, trajs2_emb_p.dtype, trajs2_len.dtype )
-                model_rtn = self.model(trajs1_emb, trajs1_emb_p, trajs1_len, time_deltas1, trajs2_emb, trajs2_emb_p, trajs2_len, time_deltas2, neg_trajs_emb, neg_trajs_emb_p, neg_trajs_len, neg_time_deltas)
-                loss = self.model.loss(*model_rtn)
-
-                loss.backward()
-                optimizer.step()
+                if Config.fp_16:
+                    with torch.amp.autocast("cuda", dtype = torch.float16):
+                        trajs1_emb, trajs1_emb_p, trajs1_len, time_deltas1, trajs2_emb, trajs2_emb_p, trajs2_len, time_deltas2, neg_trajs_emb, neg_trajs_emb_p, neg_trajs_len, neg_time_deltas = batch
+                        # print(trajs1_emb.dtype, trajs1_emb_p.dtype, trajs1_len.dtype, trajs2_emb.dtype, trajs2_emb_p.dtype, trajs2_len.dtype )
+                        model_rtn = self.model(trajs1_emb, trajs1_emb_p, trajs1_len, time_deltas1, trajs2_emb, trajs2_emb_p, trajs2_len, time_deltas2, neg_trajs_emb, neg_trajs_emb_p, neg_trajs_len, neg_time_deltas)
+                        loss = self.model.loss(*model_rtn)
+                    scaler.scale(loss).backward()
+                    scaler.step(optimizer)
+                    scaler.update()
+                else:
+                    trajs1_emb, trajs1_emb_p, trajs1_len, time_deltas1, trajs2_emb, trajs2_emb_p, trajs2_len, time_deltas2, neg_trajs_emb, neg_trajs_emb_p, neg_trajs_len, neg_time_deltas = batch
+                    # print(trajs1_emb.dtype, trajs1_emb_p.dtype, trajs1_len.dtype, trajs2_emb.dtype, trajs2_emb_p.dtype, trajs2_len.dtype )
+                    model_rtn = self.model(trajs1_emb, trajs1_emb_p, trajs1_len, time_deltas1, trajs2_emb, trajs2_emb_p, trajs2_len, time_deltas2, neg_trajs_emb, neg_trajs_emb_p, neg_trajs_len, neg_time_deltas)
+                    loss = self.model.loss(*model_rtn)
+                    loss.backward()
+                    optimizer.step()
                 loss_ep.append(loss.item())
                 train_gpu.append(tool_funcs.GPUInfo.mem()[0])
                 train_ram.append(tool_funcs.RAMInfo.mem())
@@ -294,7 +306,7 @@ class TrajCLTrainer:
                     logging.debug("[Training] ep-batch={}-{}, loss={:.3f}, @={:.3f}, gpu={}, ram={}" \
                             .format(i_ep, i_batch, loss.item(), time.time() - _time_batch_start,
                                     tool_funcs.GPUInfo.mem(), tool_funcs.RAMInfo.mem()))
-                if i_batch % Config.save_steps == 0:
+                if i_batch % Config.save_steps == 0 and i_batch!=0:
                     self.test()
                     self.save_checkpoint("ep{}_batch{}".format(i_ep, i_batch))
                     self.model.train()
@@ -356,10 +368,17 @@ class TrajCLTrainer:
         with torch.no_grad():
             for i_batch, batch in tqdm(enumerate(self.test_dataloader)):
                 _time_batch = time.time()
-                trajs_emb, trajs_emb_p, trajs_len, time_deltas, pos_trajs_emb, pos_trajs_emb_p, pos_trajs_len, pos_time_deltas, neg_trajs_emb, neg_trajs_emb_p, neg_trajs_len, neg_time_deltas = batch
-                trajs_embs = self.model.interpret(trajs_emb, trajs_emb_p, trajs_len, time_deltas)
-                pos_trajs_embs = self.model.interpret(pos_trajs_emb, pos_trajs_emb_p, pos_trajs_len, pos_time_deltas)
-                neg_trajs_embs = self.model.interpret(neg_trajs_emb, neg_trajs_emb_p, neg_trajs_len, neg_time_deltas)
+                if Config.fp_16:
+                    with torch.amp.autocast("cuda", dtype = torch.float16):
+                        trajs_emb, trajs_emb_p, trajs_len, time_deltas, pos_trajs_emb, pos_trajs_emb_p, pos_trajs_len, pos_time_deltas, neg_trajs_emb, neg_trajs_emb_p, neg_trajs_len, neg_time_deltas = batch
+                        trajs_embs = self.model.interpret(trajs_emb, trajs_emb_p, trajs_len, time_deltas)
+                        pos_trajs_embs = self.model.interpret(pos_trajs_emb, pos_trajs_emb_p, pos_trajs_len, pos_time_deltas)
+                        neg_trajs_embs = self.model.interpret(neg_trajs_emb, neg_trajs_emb_p, neg_trajs_len, neg_time_deltas)
+                else:
+                    trajs_emb, trajs_emb_p, trajs_len, time_deltas, pos_trajs_emb, pos_trajs_emb_p, pos_trajs_len, pos_time_deltas, neg_trajs_emb, neg_trajs_emb_p, neg_trajs_len, neg_time_deltas = batch
+                    trajs_embs = self.model.interpret(trajs_emb, trajs_emb_p, trajs_len, time_deltas)
+                    pos_trajs_embs = self.model.interpret(pos_trajs_emb, pos_trajs_emb_p, pos_trajs_len, pos_time_deltas)
+                    neg_trajs_embs = self.model.interpret(neg_trajs_emb, neg_trajs_emb_p, neg_trajs_len, neg_time_deltas)
                 trajs_emb_list.append(trajs_embs.cpu())
                 pos_trajs_emb_list.append(pos_trajs_embs.cpu())
                 neg_trajs_emb_list.append(neg_trajs_embs.cpu())

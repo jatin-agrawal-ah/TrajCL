@@ -67,6 +67,37 @@ def mask(src, time_indices=None):
         mask_idx = np.random.choice(l, int(l * Config.traj_mask_ratio), replace=False)
         return np.delete(arr, mask_idx, 0).tolist()
 
+def neg_mask(src, time_indices=None):
+    l = len(src)
+    arr = np.array(src)
+    if time_indices is not None:
+        time_arr = np.array(time_indices)
+        mask_idx_1 = np.random.choice(l, int(l * Config.traj_neg_mask_ratio), replace=False)
+        return np.delete(arr, mask_idx_1, 0).tolist(), np.delete(time_arr, mask_idx_1, 0).tolist()
+    else:
+        mask_idx = np.random.choice(l, int(l * Config.traj_neg_mask_ratio), replace=False)
+        return np.delete(arr, mask_idx, 0).tolist()
+
+def neg_mask_and_jumble(src, time_indices=None):
+    new_src, new_time_indices = neg_mask(src, time_indices)
+    new_src, new_time_indices = jumble(new_src, new_time_indices)
+    return new_src, new_time_indices
+
+def neg_mask_and_translate(src, time_indices=None):
+    new_src, new_time_indices = neg_mask(src, time_indices)
+    new_src, new_time_indices = translate(new_src, new_time_indices)
+    return new_src, new_time_indices
+
+def shift_and_jumble(src, time_indices=None):
+    new_src, new_time_indices = shift(src, time_indices)
+    new_src, new_time_indices = jumble(new_src, new_time_indices)
+    return new_src, new_time_indices
+    
+def jumble_and_translate(src, time_indices=None):
+    new_src, new_time_indices = jumble(src, time_indices)
+    new_src, new_time_indices = translate(new_src, new_time_indices)
+    return new_src, new_time_indices
+    
 def subset(src, time_indices=None):
     l = len(src)
     max_start_idx = l - int(l * Config.traj_subset_ratio)
@@ -124,7 +155,8 @@ def simplify_shift(src, time_indices):
     return src, time_indices
 def get_aug_fn(name: str):
     return {'straight': straight, 'simplify': simplify, 'shift': shift,
-            'mask': mask, 'subset': subset, 'shift_mask': shift_mask, 'simplify_shift': simplify_shift, "simplify_by_time": simplify_by_time, 'jumble': jumble, 'large_time_shift': large_time_shift, 'translate': translate  }.get(name, None)
+            'mask': mask, 'subset': subset, 'shift_mask': shift_mask, 'simplify_shift': simplify_shift, "simplify_by_time": simplify_by_time, 'jumble': jumble, 'large_time_shift': large_time_shift, 'translate': translate,  \
+                "neg_mask": neg_mask, "neg_mask_and_jumble": neg_mask_and_jumble, "neg_mask_and_translate": neg_mask_and_translate, "shift_and_jumble": shift_and_jumble, "jumble_and_translate": jumble_and_translate}.get(name, None)   
 
 def coalesce(coords,cell_ids_parent, cell_ids_child, timestamps):
     start = 0

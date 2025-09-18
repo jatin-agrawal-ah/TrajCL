@@ -21,8 +21,8 @@ class Config:
     # device = torch.device("cpu")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     root_dir = os.path.abspath(__file__)[:-10] # dont use os.getcwd()
-    checkpoint_dir = root_dir + '/exp/usa_only_pos_sampling/'
-    save_steps = 10000
+    checkpoint_dir = root_dir + '/exp/usa_neg_samp_small_queue_newaug/'
+    save_steps = 5000
     
     dataset = 'porto'
     dataset_prefix = ''
@@ -41,12 +41,13 @@ class Config:
     max_len_meters = 100000
 
     #===========TrajCL=============
-    neg_sampling = False
-    trajcl_batch_size =256
+    fp_16 = False
+    neg_sampling = True
+    trajcl_batch_size = 256
     cell_embedding_dim = 256
     seq_embedding_dim = 256
     moco_proj_dim =  seq_embedding_dim // 2
-    moco_nqueue = 1024
+    moco_nqueue = 32
     moco_temperature = 0.05
 
     trajcl_training_epochs = 20
@@ -61,7 +62,7 @@ class Config:
     trajcl_aug5 = "shift_mask"
     trajcl_aug6 = "simplify_shift"
     trajcl_pos_aug_list = [ 'mask', 'simplify', 'shift','shift_mask', 'simplify_by_time']
-    trajcl_neg_aug_list = [ 'jumble', 'translate']
+    trajcl_neg_aug_list = [ 'neg_mask_and_jumble', 'neg_mask_and_translate', 'translate', 'jumble_and_translate', 'shift_and_jumble']
     trajcl_local_mask_sidelen = cell_size * 11
     
     trans_attention_head = 4
@@ -76,6 +77,7 @@ class Config:
     traj_simp_dist = 250
     traj_shift_dist = 500
     traj_mask_ratio = 0.5
+    traj_neg_mask_ratio = 0.7
     traj_add_ratio = 0.3
     traj_subset_ratio = 0.7 # preserved ratio
     traj_large_time_shift_min = 70
