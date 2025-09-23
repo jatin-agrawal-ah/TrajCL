@@ -34,7 +34,7 @@ def init_cellspace():
     return
 
 
-Config.dataset = "usa_small_cell"
+Config.dataset = "usa_large_cell_512"
 Config.post_value_updates()
 
 init_cellspace()

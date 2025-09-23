@@ -73,6 +73,13 @@ class TrajCL(nn.Module):
         traj_embs = self.clmodel.encoder_q(**{'src': trajs1_emb, 'time_deltas': time_deltas1, 'attn_mask': None, 'src_padding_mask': src_padding_mask1, 'src_len': trajs1_len, 'srcspatial': trajs1_emb_p})
         return traj_embs
 
+    def interpret_v2(self, trajs1_emb, trajs1_emb_p, trajs1_len, time_deltas1):
+        max_trajs1_len = trajs1_len.max().item() # trajs1_len[0]
+        src_padding_mask1 = torch.arange(max_trajs1_len, device = Config.device)[None, :] >= trajs1_len[:, None]
+        # traj_embs = self.clmodel.encoder_q(**{'src': trajs1_emb, 'time_indices': time_indices1, 'attn_mask': None, 'src_padding_mask': src_padding_mask1, 'src_len': trajs1_len, 'srcspatial': trajs1_emb_p})
+        traj_embs = self.clmodel.encoder_q(**{'src': trajs1_emb, 'time_deltas': time_deltas1, 'attn_mask': None, 'src_padding_mask': src_padding_mask1, 'src_len': trajs1_len, 'srcspatial': trajs1_emb_p})
+        traj_embs_proj = self.clmodel.mlp_q(traj_embs)
+        return traj_embs_proj
 
     def loss(self, logits, targets):
         return self.clmodel.loss(logits, targets)
@@ -294,7 +301,7 @@ class TrajCLTrainer:
                     logging.debug("[Training] ep-batch={}-{}, loss={:.3f}, @={:.3f}, gpu={}, ram={}" \
                             .format(i_ep, i_batch, loss.item(), time.time() - _time_batch_start,
                                     tool_funcs.GPUInfo.mem(), tool_funcs.RAMInfo.mem()))
-                if i_batch % Config.save_steps == 0:
+                if i_batch % Config.save_steps == 0 and i_batch!=0:
                     self.test()
                     self.save_checkpoint("ep{}_batch{}".format(i_ep, i_batch))
                     self.model.train()

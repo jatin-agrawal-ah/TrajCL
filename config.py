@@ -21,7 +21,7 @@ class Config:
     # device = torch.device("cpu")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     root_dir = os.path.abspath(__file__)[:-10] # dont use os.getcwd()
-    checkpoint_dir = root_dir + '/exp/usa_only_pos_sampling/'
+    checkpoint_dir = root_dir + '/exp/usa_neg_sampling_smallqueue_512/'
     save_steps = 10000
     
     dataset = 'porto'
@@ -41,12 +41,12 @@ class Config:
     max_len_meters = 100000
 
     #===========TrajCL=============
-    neg_sampling = False
-    trajcl_batch_size =256
+    neg_sampling = True
+    trajcl_batch_size =128
     cell_embedding_dim = 256
     seq_embedding_dim = 256
     moco_proj_dim =  seq_embedding_dim // 2
-    moco_nqueue = 1024
+    moco_nqueue = 32
     moco_temperature = 0.05
 
     trajcl_training_epochs = 20
@@ -163,15 +163,15 @@ class Config:
             cls.max_lon = 41.8
             cls.max_lat = 41.4
             cls.cell_size = 250
-        elif 'usa_large_cell' == cls.dataset:
-            cls.dataset_prefix = 'usa_large_cell'
+        elif 'usa_large_cell_512' == cls.dataset:
+            cls.dataset_prefix = 'usa_large_cell_512'
             cls.min_lon = -125 # -124.73306
             cls.min_lat = 25 # 25.11833
             cls.max_lon = -66 #-66.94978
             cls.max_lat = 50 #49.38447
             cls.cell_size = 50000
-        elif 'usa_small_cell' == cls.dataset:
-            cls.dataset_prefix = 'usa_small_cell'
+        elif 'usa_small_cell_512' == cls.dataset:
+            cls.dataset_prefix = 'usa_small_cell_512'
             cls.min_lon = 0
             cls.min_lat = 0 
             cls.max_lon = 0.45 
@@ -181,6 +181,10 @@ class Config:
             pass
         
         cls.dataset_file = cls.root_dir + '/data/' + cls.dataset_prefix
+        # cls.dataset_cell_file_parent = "/home/sagemaker-user/TrajCL/data/usa_large_cell_512_cell50000_cellspace.pkl"
+        # cls.dataset_cell_file_child = "/home/sagemaker-user/TrajCL/data/usa_small_cell_512_cell250_cellspace.pkl"
+        # cls.dataset_embs_file_parent = "/home/sagemaker-user/TrajCL/data/usa_large_cell_512_cell50000_embdim512_embs.pkl"
+        # cls.dataset_embs_file_child = "/home/sagemaker-user/TrajCL/data/usa_small_cell_512_cell250_embdim512_embs.pkl"
         cls.dataset_cell_file_parent = "/home/sagemaker-user/TrajCL/data/usa_large_cell_cell50000_cellspace.pkl"
         cls.dataset_cell_file_child = "/home/sagemaker-user/TrajCL/data/usa_small_cell_cell250_cellspace.pkl"
         cls.dataset_embs_file_parent = "/home/sagemaker-user/TrajCL/data/usa_large_cell_cell50000_embdim256_embs.pkl"
