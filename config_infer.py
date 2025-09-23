@@ -3,14 +3,16 @@ import random
 import torch
 import numpy
 
-class InfernceConfig:
+class InferenceConfig:
     def __init__(self):
         self.debug = True
         self.dumpfile_uniqueid = ''
         self.seed = 2000
         # self.device = torch.device("cpu")
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        self.checkpoint_file = "/home/sagemaker-user/TrajCL/exp/usa_neg_sampling_smallqueue/ep1_batch100000"
+        self.checkpoint_file = "/Workspace/Users/jatin.agrawal@earnin.com/TrajCL/exp/usa_v1/ep1_batch100000"
+        self.traj_df_table_name= "main_prod.datascience_scratchpad.traj_data"
+        self.model_version = "v1"
 
         #===========TrajCL=============
         self.min_lon = -125 # -124.73306
@@ -19,7 +21,7 @@ class InfernceConfig:
         self.max_lat = 50 #49.38447
         self.cell_size = 50000
         self.neg_sampling = True
-        self.batch_size = 512
+        self.batch_size = 32
         self.cell_embedding_dim = 256
         self.seq_embedding_dim = 256
         self.trajcl_local_mask_sidelen = self.cell_size * 11
@@ -43,10 +45,10 @@ class InfernceConfig:
 
         self.test_exp1_lcss_edr_epsilon = 0.25 # normalized
 
-        self.dataset_cell_file_parent = "/home/sagemaker-user/TrajCL/data/usa_large_cell_cell50000_cellspace.pkl"
-        self.dataset_cell_file_child = "/home/sagemaker-user/TrajCL/data/usa_small_cell_cell250_cellspace.pkl"
-        self.dataset_embs_file_parent = "/home/sagemaker-user/TrajCL/data/usa_large_cell_cell50000_embdim256_embs.pkl"
-        self.dataset_embs_file_child = "/home/sagemaker-user/TrajCL/data/usa_small_cell_cell250_embdim256_embs.pkl"
+        self.dataset_cell_file_parent = "/Workspace/Users/jatin.agrawal@earnin.com/TrajCL/exp/usa_v1/usa_large_cell_cell50000_cellspace.pkl"
+        self.dataset_cell_file_child = "/Workspace/Users/jatin.agrawal@earnin.com/TrajCL/exp/usa_v1/usa_small_cell_cell250_cellspace.pkl"
+        self.dataset_embs_file_parent = "/Workspace/Users/jatin.agrawal@earnin.com/TrajCL/exp/usa_v1/usa_large_cell_cell50000_embdim256_embs.pkl"
+        self.dataset_embs_file_child = "/Workspace/Users/jatin.agrawal@earnin.com/TrajCL/exp/usa_v1/usa_small_cell_cell250_embdim256_embs.pkl"
 
     # @classmethod
     # def to_str(cls): # __str__, self
