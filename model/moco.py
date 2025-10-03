@@ -12,13 +12,13 @@ class MoCo(nn.Module):
     https://arxiv.org/abs/1911.05722
     """
     def __init__(self, encoder_q, encoder_k, nemb, nout,
-                queue_size, mmt = 0.999, temperature = 0.07):
+                queue_size, mmt = 0.999, temperature = 0.07, neg_sampling = False):
         super(MoCo, self).__init__()
 
         self.queue_size = queue_size
         self.mmt = mmt
         self.temperature = temperature
-
+        self.neg_sampling = neg_sampling
         self.criterion = nn.CrossEntropyLoss()
 
         # create the encoders
@@ -63,20 +63,23 @@ class MoCo(nn.Module):
 
         ptr = int(self.queue_ptr)
         # assert self.queue_size % batch_size == 0  # for simplicity
-        
-        if ptr + batch_size <= self.queue_size:
-            self.queue[:, ptr:ptr + batch_size] = keys.T
-        else:
-            self.queue[:, ptr:self.queue_size] = keys.T[:, 0:self.queue_size-ptr]
-            self.queue[:, 0:batch_size-self.queue_size+ptr] = keys.T[:, self.queue_size-ptr:]
+        if batch_size>self.queue_size:
+            self.queue[:,0:self.queue_size]= keys.T[:,0:self.queue_size]
+            ptr = 0
+        else:        
+            if ptr + batch_size <= self.queue_size:
+                self.queue[:, ptr:ptr + batch_size] = keys.T
+            else:
+                self.queue[:, ptr:self.queue_size] = keys.T[:, 0:self.queue_size-ptr]
+                self.queue[:, 0:batch_size-self.queue_size+ptr] = keys.T[:, self.queue_size-ptr:]
 
         # replace the keys at ptr (dequeue and enqueue)
-        ptr = (ptr + batch_size) % self.queue_size  # move pointer
+            ptr = (ptr + batch_size) % self.queue_size  # move pointer
 
         self.queue_ptr[0] = ptr
 
  
-    def forward(self, kwargs_q, kwargs_k):
+    def forward(self, kwargs_q, kwargs_k, kwargs_custom_neg=None):
 
         # compute query features
         q = self.mlp_q(self.encoder_q(**kwargs_q))  # queries: NxC
@@ -94,7 +97,16 @@ class MoCo(nn.Module):
         # negative logits: NxK
         l_neg = torch.einsum('nc,ck->nk', [q, self.queue.clone().detach()])
 
-        # logits: Nx(1+K)
+        if kwargs_custom_neg is not None and self.neg_sampling:
+            # Expect custom_negatives to be shape [N, C]
+            custom_negatives = self.mlp_k(self.encoder_k(**kwargs_custom_neg))
+            custom_negatives = nn.functional.normalize(custom_negatives, dim=1)  # Normalize
+            l_custom = torch.einsum('nc,nc->n', [q, custom_negatives]).unsqueeze(-1)
+            
+            # Concatenate custom negatives to existing negatives
+            l_neg = torch.cat([l_neg, l_custom], dim=1)  # [N, K + M]
+
+        # logits: Nx(1+K+1)
         logits = torch.cat([l_pos, l_neg], dim=1)
 
         # apply temperature

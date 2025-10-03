@@ -41,8 +41,16 @@ class CellSpace:
 
 
     def get_xyidx_by_point(self, x, y):
-        assert self.x_min <= x <= self.x_max \
-                and self.y_min <= y <= self.y_max
+        if x<self.x_min:
+            x = self.x_min
+        elif x>self.x_max:
+            x = self.x_max
+        if y<self.y_min:
+            y = self.y_min
+        elif y>self.y_max:
+            y = self.y_max
+        # assert self.x_min <= x <= self.x_max \
+        #         and self.y_min <= y <= self.y_max
         
         i_x = int(x - self.x_min) // self.x_unit
         i_y = int(y - self.y_min) // self.y_unit
@@ -115,3 +123,31 @@ class CellSpace:
         return "unit=({},{}), xrange=({},{}), yrange=({},{}), size=({},{})".format( \
                 self.x_unit, self.y_unit, self.x_min, self.x_max, self.y_min, self.y_max, \
                 self.x_size, self.y_size)
+
+
+class HirearchicalCellSpace:
+    def __init__(self, cellspace_parent, cellspace_child):
+        self.cellspace_parent = cellspace_parent
+        self.cellspace_child = cellspace_child
+        self.x_min = cellspace_parent.x_min
+        self.y_min = cellspace_parent.y_min
+        self.x_max = cellspace_parent.x_max
+        self.y_max = cellspace_parent.y_max
+
+    def get_parent_cellid(self, x,y):
+        return self.cellspace_parent.get_cellid_by_point(x,y)
+
+    def get_parent_xyidx(self, x,y):
+        return self.cellspace_parent.get_xyidx_by_point(x,y)
+
+    def get_child_cellid(self, x,y):
+        parent_i_x, parent_i_y = self.cellspace_parent.get_xyidx_by_point(x,y)
+        parent_x_unit, parent_y_unit = self.cellspace_parent.x_unit, self.cellspace_parent.y_unit
+        new_x, new_y = x - self.cellspace_parent.x_min - parent_i_x * parent_x_unit, \
+                        y - self.cellspace_parent.y_min - parent_i_y * parent_y_unit
+        return self.cellspace_child.get_cellid_by_point(new_x, new_y)
+
+    def get_parent_child_cellid(self, x,y):
+        parent_cellid = self.get_parent_cellid(x,y)
+        child_cellid = self.get_child_cellid(x,y)
+        return parent_cellid, child_cellid

@@ -6,52 +6,162 @@ import math
 
 from config import Config
 from utils import tool_funcs
-from utils.rdp import rdp
+from utils.rdp import rdp, rdp_with_time_indices
 from utils.cellspace import CellSpace
 from utils.tool_funcs import truncated_rand
 
 
-def straight(src):
+def straight(src, time_indices=None):
     return src
 
-
-def simplify(src):
+def simplify(src, time_indices=None):
     # src: [[lon, lat], [lon, lat], ...]
-    return rdp(src, epsilon = Config.traj_simp_dist)
+    if time_indices is None:
+        return rdp(src, epsilon = Config.traj_simp_dist)
+    else:
+        return rdp_with_time_indices(src, time_indices, epsilon = Config.traj_simp_dist)
+
+def time_shift(time_indices=None):
+    time_shift_val = random.randint(Config.traj_time_shift_min, Config.traj_time_shift_max)
+    if time_indices is not None:
+        return [(t + time_shift_val) if t + time_shift_val <= Config.traj_max_time else Config.traj_max_time for t in time_indices]
+    else:
+        return None
+
+def simplify_by_time(src, time_indices):
+    new_src = []
+    new_time_indices = []
+    for i in range(len(src)):
+        if i == 0:
+            new_src.append(src[i])
+            new_time_indices.append(time_indices[i])
+        else:
+            if int((time_indices[i] - new_time_indices[-1]))/1e9/60 > 10:
+                new_src.append(src[i])
+                new_time_indices.append(time_indices[i])
+    new_src = np.array(new_src)
+    new_time_indices = np.array(new_time_indices)
+    return new_src, new_time_indices
 
 
-def shift(src):
-    return [[p[0] + truncated_rand(), p[1] + truncated_rand()] for p in src]
+def shift(src, time_indices=None):
+    if time_indices is not None:
+        # time_shifted = time_shift(time_indices)
+        return [[p[0] + truncated_rand(), p[1] + truncated_rand()] for p in src], time_indices
+    else:
+        return [[p[0] + truncated_rand(), p[1] + truncated_rand()] for p in src]
 
-
-def mask(src):
+def mask(src, time_indices=None):
     l = len(src)
     arr = np.array(src)
-    mask_idx = np.random.choice(l, int(l * Config.traj_mask_ratio), replace = False)
-    return np.delete(arr, mask_idx, 0).tolist()
+    # print(len(src), len(time_indices))
+    if time_indices is not None:
+        time_arr = np.array(time_indices)
+        mask_idx_1 = np.random.choice(l, int(l * Config.traj_mask_ratio), replace=False)
+        mask_idx = []
+        for i in mask_idx_1:
+            if i<len(time_indices)-1 and int((time_indices[i+1] - time_indices[i]))/1e9/60 < 60:
+                mask_idx.append(i)
+        return np.delete(arr, mask_idx, 0).tolist(), np.delete(time_arr, mask_idx, 0).tolist()
+    else:
+        mask_idx = np.random.choice(l, int(l * Config.traj_mask_ratio), replace=False)
+        return np.delete(arr, mask_idx, 0).tolist()
 
-
-def subset(src):
+def subset(src, time_indices=None):
     l = len(src)
     max_start_idx = l - int(l * Config.traj_subset_ratio)
     start_idx = random.randint(0, max_start_idx)
     end_idx = start_idx + int(l * Config.traj_subset_ratio)
-    return src[start_idx: end_idx]
+    if time_indices is None:
+        return src[start_idx: end_idx]
+    else:
+        return src[start_idx: end_idx], time_indices[start_idx: end_idx]
+
+# def reverse(src, time_indices=None):
+#     if time_indices is not None:
+#         return src[::-1], time_indices
+#     else:
+#         return src[::-1]
+
+def jumble(src, time_indices=None):
+    l = len(src)
+    arr = np.array(src)
+    jumble_idx = np.random.choice(l, l, replace=False)
+    return arr[jumble_idx].tolist() , time_indices
 
 
+def large_time_shift(src, time_indices=None):
+    time_shift_val = random.randint(Config.traj_large_time_shift_min, Config.traj_large_time_shift_max)
+    new_time_indices = [(t + time_shift_val)% (Config.traj_max_time+1) for t in time_indices]
+    # sort src and new_time_indices by new_time_indices
+    sorted_indices = sorted(range(len(new_time_indices)), key=lambda k: new_time_indices[k])
+    sorted_src = [src[i] for i in sorted_indices]
+    sorted_time_indices = [new_time_indices[i] for i in sorted_indices]
+    return sorted_src, sorted_time_indices
+
+
+def translate(traj, time_indices):
+    theta = random.uniform(0, 2 * np.pi)
+
+    # Step 2: Define shift amount in meters
+    distance =random.randint(1000,3000)  # shift trajectory by 500 meters
+    dx = distance * np.cos(theta)
+    dy = distance * np.sin(theta)
+
+    # Step 3: Apply shift to all coordinates
+    shifted_coords = [(x + dx, y + dy) for x, y in traj]
+    return shifted_coords, time_indices
+
+def shift_mask(src,time_indices):
+    src, time_indices = shift(src, time_indices)
+    src, time_indices = mask(src, time_indices)
+    return src, time_indices
+
+def simplify_shift(src, time_indices):
+    src, time_indices = simplify(src, time_indices)
+    src, time_indices = shift(src, time_indices)
+
+    return src, time_indices
 def get_aug_fn(name: str):
     return {'straight': straight, 'simplify': simplify, 'shift': shift,
-            'mask': mask, 'subset': subset}.get(name, None)
+            'mask': mask, 'subset': subset, 'shift_mask': shift_mask, 'simplify_shift': simplify_shift, "simplify_by_time": simplify_by_time, 'jumble': jumble, 'large_time_shift': large_time_shift, 'translate': translate  }.get(name, None)
+
+def coalesce(coords,cell_ids_parent, cell_ids_child, timestamps):
+    start = 0
+    new_coords = []
+    new_cell_ids_parent = []
+    new_cell_ids_child = []
+    delta_t = []
+    for i in range(1,len(cell_ids_parent)):
+        if cell_ids_parent[i] != cell_ids_parent[start] or cell_ids_child[i] != cell_ids_child[start]:
+            new_coords.append(coords[start])
+            new_cell_ids_parent.append(cell_ids_parent[start])
+            new_cell_ids_child.append(cell_ids_child[start])
+            dt2 = timestamps[i]
+            dt1 = timestamps[start]
+            # print(dt2,dt1,int(dt2-dt1)/1e9/60)
+            delta_t.append(int((dt2 - dt1))/1e9/60+1)
+            start = i
+    new_coords.append(coords[start])
+    new_cell_ids_parent.append(cell_ids_parent[start])
+    new_cell_ids_child.append(cell_ids_child[start])
+    dt2 = timestamps[-1]
+    dt1 = timestamps[start]
+    delta_t.append(int((dt2 - dt1))/1e9/60+1)
+    return new_coords, new_cell_ids_parent, new_cell_ids_child, delta_t
 
 
-# pair-wise conversion -- structural features and spatial feasures
-def merc2cell2(src, cs: CellSpace):
+def merc2cell2(coords, timestamps, cs: CellSpace):
     # convert and remove consecutive duplicates
-    tgt = [ (cs.get_cellid_by_point(*p), p) for p in src]
+    
+    cellids = [(cs.get_parent_child_cellid(x,y)) for x,y in coords]
+    cell_ids_parent, cell_ids_child = zip(*cellids)
+
+    new_coords, new_cell_ids_parent, new_cell_ids_child, delta_t = coalesce(coords, cell_ids_parent, cell_ids_child, timestamps)
     # don't execute this if you want to keep the consecutive duplicate points. 
     # tgt = [v for i, v in enumerate(tgt) if i == 0 or v[0] != tgt[i-1][0]]
-    tgt, tgt_p = zip(*tgt)
-    return tgt, tgt_p
+    # print(len(coords), len(new_cell_ids_child))
+    return new_cell_ids_parent, new_cell_ids_child, new_coords, delta_t
 
 
 def generate_spatial_features(src, cs: CellSpace):
@@ -69,18 +179,53 @@ def generate_spatial_features(src, cs: CellSpace):
                         + math.atan2(src[i+1][0] - src[i][0],  src[i+1][1] - src[i][1])
         radian = 1 - abs(radian) / math.pi
 
+        x = -math.log((src[i][0] - cs.x_min+1e-5) / (cs.x_max - cs.x_min)+1e-5)
+        y = -math.log((src[i][1] - cs.y_min+1e-5)/ (cs.y_max - cs.y_min)+1e-5)
+        tgt.append( [x, y, dist, radian] )
+
+    x = -math.log((src[0][0] - cs.x_min+1e-5) / (cs.x_max - cs.x_min)+1e-5)
+    y = -math.log((src[0][1] - cs.y_min+1e-5)/ (cs.y_max - cs.y_min)+1e-5)
+    tgt.insert(0, [x, y, 0.0, 0.0] )
+
+    x = -math.log((src[-1][0] - cs.x_min+1e-5) / (cs.x_max - cs.x_min)+1e-5)
+    y = -math.log((src[-1][1] - cs.y_min+1e-5)/ (cs.y_max - cs.y_min)+1e-5)
+    tgt.append( [x, y, 0.0, 0.0] )
+    if len(src)==1:
+        return [tgt[0]]
+    # tgt = [length, 4]
+    return tgt
+
+def generate_spatio_temporal_features(src, time_indices, cs: CellSpace):
+    # src = [length, 2]
+    tgt = []
+    lens = []
+    for p1, p2 in tool_funcs.pairwise(src):
+        lens.append(tool_funcs.l2_distance(p1[0], p1[1], p2[0], p2[1]))
+
+    for i in range(1, len(src) - 1):
+        dist = (lens[i-1] + lens[i]) / 2
+        velocity_l = lens[i-1] / ((time_indices[i] - time_indices[i-1])*600) if (time_indices[i] - time_indices[i-1]) > 0 else 0
+        velocity_r = lens[i] / ((time_indices[i+1] - time_indices[i])*600) if (time_indices[i+1] - time_indices[i]) > 0 else 0
+        dist = dist / (Config.trajcl_local_mask_sidelen / 1.414) # float_ceil(sqrt(2))
+
+        radian = math.pi - math.atan2(src[i-1][0] - src[i][0],  src[i-1][1] - src[i][1]) \
+                        + math.atan2(src[i+1][0] - src[i][0],  src[i+1][1] - src[i][1])
+        radian = 1 - abs(radian) / math.pi
+
         x = (src[i][0] - cs.x_min) / (cs.x_max - cs.x_min)
         y = (src[i][1] - cs.y_min)/ (cs.y_max - cs.y_min)
-        tgt.append( [x, y, dist, radian] )
+        tgt.append( [x, y, dist, radian, velocity_l, velocity_r] )
 
     x = (src[0][0] - cs.x_min) / (cs.x_max - cs.x_min)
     y = (src[0][1] - cs.y_min)/ (cs.y_max - cs.y_min)
-    tgt.insert(0, [x, y, 0.0, 0.0] )
-    
+    velocity_r = lens[0]/ ((time_indices[1] - time_indices[0])*600) if (time_indices[1] - time_indices[0]) > 0 else 0
+    tgt.insert(0, [x, y, 0.0, 0.0, 0.0, velocity_r] )
+
     x = (src[-1][0] - cs.x_min) / (cs.x_max - cs.x_min)
     y = (src[-1][1] - cs.y_min)/ (cs.y_max - cs.y_min)
-    tgt.append( [x, y, 0.0, 0.0] )
-    # tgt = [length, 4]
+    velocity_l = lens[-1]/ ((time_indices[-1] - time_indices[-2])*600) if (time_indices[-1] - time_indices[-2]) > 0 else 0
+    tgt.append( [x, y, 0.0, 0.0, velocity_l, 0.0] )
+    # tgt = [length, 5]
     return tgt
 
 

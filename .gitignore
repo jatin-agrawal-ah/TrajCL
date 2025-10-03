@@ -176,3 +176,7 @@ dmypy.json
 /utils/build
 
 !.gitkeep
+*.pt
+*pkl
+*.txt
+/exp
