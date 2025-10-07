@@ -11,7 +11,10 @@ class InferenceConfig:
         # self.device = torch.device("cpu")
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.checkpoint_file = "/Workspace/Users/jatin.agrawal@earnin.com/TrajCL/exp/usa_v1/ep1_batch100000"
-        self.traj_df_table_name= "main_prod.datascience_scratchpad.traj_data"
+        self.traj_df_table_name= "main_prod.ml_data.traj_data"
+        self.static_moving_table_name = "main_prod.ml_data.static_moving_worktype"
+        self.went_to_work_table_name = "main_prod.ml_data.went_to_work_traj"
+        self.traj_emb_table_name = "main_prod.ml_data.traj_emb"
         self.model_version = "v1"
 
         #===========TrajCL=============
