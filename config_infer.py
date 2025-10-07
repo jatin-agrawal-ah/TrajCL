@@ -1,7 +1,5 @@
 import os
 import random
-import torch
-import numpy
 
 class InferenceConfig:
     def __init__(self):
@@ -9,7 +7,7 @@ class InferenceConfig:
         self.dumpfile_uniqueid = ''
         self.seed = 2000
         # self.device = torch.device("cpu")
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.device = "cuda:0"
         self.checkpoint_file = "/Workspace/Users/jatin.agrawal@earnin.com/TrajCL/exp/usa_v1/ep1_batch100000"
         self.traj_df_table_name= "main_prod.ml_data.traj_data"
         self.static_moving_table_name = "main_prod.ml_data.static_moving_worktype"
